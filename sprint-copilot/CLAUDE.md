@@ -49,6 +49,25 @@ read it before touching any track.
     `SprintRunResult` — always report them in the UI, don't silently drop
     them.
 
+2d. **Unfinished issues from the previous sprint are force-carried into the
+    new preview.** Before classification, `/api/run/preview` calls
+    `listMilestones()` + `findPreviousMilestone()`
+    (`src/lib/github/milestones.ts`) to find the most recent milestone whose
+    due date has passed (falling back to the most recently created milestone
+    if none has a due date), then treats any still-open issue on that
+    milestone as a carry-over candidate. `allocate()`
+    (`src/lib/allocation/allocate.ts`) takes an optional third
+    `guaranteedNumbers: Set<number>` param — carry-over issues are always
+    selected, and their points reduce their bucket's budget for everything
+    else (they can push the run over capacity; the review screen's existing
+    over-capacity styling covers that). They're flagged in the preview via
+    `ClassifiedIssue.carriedOverFromMilestone` and shown with a "carried
+    over" badge in `ReviewPanel`. This was previously a gap — the pipeline
+    re-fetched all open issues every run with no notion of "previous sprint"
+    at all, so unfinished work could silently miss its old sprint's view or
+    get re-milestoned with a stale `status:in-progress` label still on it
+    (see the labels gotcha below for that half of the fix).
+
 3. **GitHub API gotchas** (verified against docs, not memory):
    - Sub-issues (not currently used — see 2b): `POST
      .../issues/{issue_number}/sub_issues` body `{"sub_issue_id": <id>}` —
@@ -67,7 +86,20 @@ read it before touching any track.
      `STATUS_TODO_LABEL` (`"status:todo"`) to every written issue. There is
      **no** `agent-drafted` label — it was removed (from both the code and
      every already-labeled issue in the target repo) as an unneeded marker;
-     don't re-add it without an explicit ask.
+     don't re-add it without an explicit ask. A carried-over issue (see 2d)
+     may still carry `status:in-progress` from the previous sprint —
+     `/api/run/confirm` strips that via `removeLabel()` before applying
+     `STATUS_TODO_LABEL`, since additive-only labels would otherwise stack
+     both status labels on it. `ConfirmSelection` carries each issue's
+     preview-time `labels` so confirm knows what to strip.
+   - Self-assignment: Confirm also assigns every written issue to the PAT's
+     own login (`getAuthenticatedUserLogin()`, `GET /user`) via the plain
+     REST `POST .../issues/{issue_number}/assignees` — unlike the Copilot
+     bot login below, this endpoint works fine for a real human login. This
+     is a solo-project stopgap (no team roster to pick an assignee from);
+     don't build out a multi-assignee picker without an explicit ask. A
+     failed login lookup is logged once and skips assignment for the whole
+     run rather than erroring per-issue.
    - Copilot hand-off: **do not use the plain REST `POST
      .../issues/{issue_number}/assignees` endpoint** — verified against a
      live repo that it returns 201 but silently drops the

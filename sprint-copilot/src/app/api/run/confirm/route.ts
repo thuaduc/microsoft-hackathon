@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { BUCKET_LABEL, STATUS_TODO_LABEL, getTargetRepo } from "@/config";
-import { applyLabels, assignIssueToMilestone } from "@/lib/github/issues";
+import { BUCKET_LABEL, STATUS_IN_PROGRESS_LABEL, STATUS_TODO_LABEL, getTargetRepo } from "@/config";
+import { applyLabels, assignIssueToMilestone, assignIssueToUser, getAuthenticatedUserLogin, removeLabel } from "@/lib/github/issues";
 import { createMilestone } from "@/lib/github/milestones";
 import { ndjsonStream } from "@/lib/stream/ndjson";
 import type {
@@ -51,6 +51,16 @@ export async function POST(request: NextRequest) {
     }
     emit({ type: "log", message: `Created milestone "${milestone.title}"` });
 
+    // Solo project for now — every written issue gets self-assigned. A
+    // lookup failure here doesn't abort the run; it just means no issue
+    // gets an assignee below (already-logged once, not per-issue).
+    let assigneeLogin: string | null = null;
+    try {
+      assigneeLogin = await getAuthenticatedUserLogin();
+    } catch (err) {
+      emit({ type: "log", message: `Couldn't resolve your GitHub login, skipping assignment — ${message(err)}` });
+    }
+
     const writeOutcomes: WriteOutcome[] = [];
     for (const issue of body.selected) {
       const outcome: WriteOutcome = {
@@ -58,6 +68,7 @@ export async function POST(request: NextRequest) {
         bucket: issue.bucket,
         milestoneAssigned: false,
         labelsApplied: false,
+        assigneeApplied: false,
         errors: [],
       };
 
@@ -70,6 +81,18 @@ export async function POST(request: NextRequest) {
         emit({ type: "log", message: `#${issue.issueNumber}: milestone assign failed — ${message(err)}` });
       }
 
+      // A carried-over issue may still have status:in-progress on it from
+      // the previous sprint — labels are additive-only (see CLAUDE.md
+      // gotcha #3), so status:todo below would just stack on top of it
+      // rather than replace it. Strip the stale one first.
+      if (issue.labels.includes(STATUS_IN_PROGRESS_LABEL)) {
+        try {
+          await removeLabel(owner, repo, issue.issueNumber, STATUS_IN_PROGRESS_LABEL);
+        } catch (err) {
+          outcome.errors.push(`remove stale in-progress label: ${message(err)}`);
+        }
+      }
+
       try {
         await applyLabels(owner, repo, issue.issueNumber, [
           BUCKET_LABEL[issue.bucket],
@@ -80,6 +103,17 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         outcome.errors.push(`labels: ${message(err)}`);
         emit({ type: "log", message: `#${issue.issueNumber}: labeling failed — ${message(err)}` });
+      }
+
+      if (assigneeLogin) {
+        try {
+          await assignIssueToUser(owner, repo, issue.issueNumber, assigneeLogin);
+          outcome.assigneeApplied = true;
+          emit({ type: "log", message: `Assigned #${issue.issueNumber} to ${assigneeLogin}` });
+        } catch (err) {
+          outcome.errors.push(`assignee: ${message(err)}`);
+          emit({ type: "log", message: `#${issue.issueNumber}: assignee failed — ${message(err)}` });
+        }
       }
 
       writeOutcomes.push(outcome);

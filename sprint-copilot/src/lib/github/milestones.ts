@@ -5,6 +5,9 @@ export interface GitHubMilestone {
   id: number;
   html_url: string;
   title: string;
+  state: "open" | "closed";
+  due_on: string | null;
+  created_at: string;
 }
 
 export async function createMilestone(
@@ -40,4 +43,21 @@ export async function listMilestones(owner: string, repo: string): Promise<GitHu
   }
 
   return milestones.sort((a, b) => a.number - b.number);
+}
+
+// The "previous sprint" for carry-over purposes: whichever milestone most
+// recently reached its due date (due_on <= now), since an overdue-but-still-
+// open milestone is exactly a past sprint that ran out of time. Falls back
+// to the most recently created milestone if none have a due date at all
+// (e.g. milestones created outside this app).
+export function findPreviousMilestone(
+  milestones: GitHubMilestone[],
+  now: Date = new Date()
+): GitHubMilestone | null {
+  const dueByNow = milestones.filter((m) => m.due_on && new Date(m.due_on) <= now);
+  if (dueByNow.length > 0) {
+    return dueByNow.reduce((latest, m) => (new Date(m.due_on!) > new Date(latest.due_on!) ? m : latest));
+  }
+  if (milestones.length === 0) return null;
+  return milestones.reduce((latest, m) => (new Date(m.created_at) > new Date(latest.created_at) ? m : latest));
 }

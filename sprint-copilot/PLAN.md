@@ -643,6 +643,12 @@ catching errors per stage into `SprintRunResult.error`.
 15. On `/chat`, ask a question about the current backlog/board (e.g. "what's
     in progress right now?"): the answer matches actual GitHub state, and no
     GitHub write happens as a side effect.
+16. With a still-open issue left on a past-due milestone, preview a new
+    sprint: the activity log logs a "Carrying over N unfinished issue(s)
+    from ..." line, that issue shows a "carried over" badge in the review
+    screen and is pre-selected, and confirming moves it onto the new
+    milestone. If it had `status:in-progress`, confirm that label is gone
+    afterward (not stacked alongside the new `status:todo`).
 
 ## Critical files
 

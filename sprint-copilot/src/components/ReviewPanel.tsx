@@ -19,6 +19,7 @@ interface ReviewIssue {
   labels: string[];
   labelColors?: Record<string, string>;
   inSprint: boolean;
+  carriedOverFromMilestone?: string;
 }
 
 function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
@@ -31,6 +32,7 @@ function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
     labels: issue.labels,
     labelColors: issue.labelColors,
     inSprint: true,
+    carriedOverFromMilestone: issue.carriedOverFromMilestone,
   }));
   const unselected: ReviewIssue[] = preview.unselected.map((issue: ClassifiedIssue) => ({
     number: issue.number,
@@ -41,6 +43,7 @@ function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
     labels: issue.labels,
     labelColors: issue.labelColors,
     inSprint: false,
+    carriedOverFromMilestone: issue.carriedOverFromMilestone,
   }));
   return [...selected, ...unselected].sort((a, b) => a.number - b.number);
 }
@@ -112,7 +115,7 @@ export default function ReviewPanel({
   function handleConfirm() {
     const selected: ConfirmSelection[] = issues
       .filter((i) => i.inSprint)
-      .map((i) => ({ issueNumber: i.number, bucket: i.bucket }));
+      .map((i) => ({ issueNumber: i.number, bucket: i.bucket, labels: i.labels }));
     onConfirm(selected, milestoneTitle, totals);
   }
 
@@ -160,6 +163,11 @@ export default function ReviewPanel({
                 >
                   {issue.title}
                 </a>
+                {issue.carriedOverFromMilestone && (
+                  <span className={styles.carryOverBadge} title={`Still open from "${issue.carriedOverFromMilestone}"`}>
+                    carried over
+                  </span>
+                )}
                 <span
                   className={`${styles.bucketDot} ${
                     issue.bucket === "feature" ? styles.bucketFeature : styles.bucketBug

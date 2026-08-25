@@ -59,30 +59,44 @@ function fillBucket(
   return { picked, remaining, used };
 }
 
+// issue numbers that must be selected regardless of point budget — used to
+// force-carry still-open issues from the previous sprint's milestone into
+// this one (see findPreviousMilestone in lib/github/milestones.ts). Their
+// points still count against capacity, reducing what's left for everything
+// else; if they alone exceed capacity, the run is simply over capacity
+// (surfaced normally via AllocationResult.totals, same as an over-toggled
+// preview).
 export function allocate(
   classified: ClassifiedIssue[],
-  config: AllocationConfig
+  config: AllocationConfig,
+  guaranteedNumbers: Set<number> = new Set()
 ): AllocationResult {
-  const features = sortByPointsThenNumber(
-    classified.filter((i) => i.classification.type === "feature")
-  );
-  const bugs = sortByPointsThenNumber(
-    classified.filter((i) => i.classification.type === "bug")
-  );
+  const guaranteed = classified.filter((i) => guaranteedNumbers.has(i.number));
+  const rest = classified.filter((i) => !guaranteedNumbers.has(i.number));
 
-  const featureBudget = config.capacityPoints * config.featureRatio;
-  const bugBudget = config.capacityPoints * config.bugRatio;
+  const guaranteedFeaturePoints = guaranteed
+    .filter((i) => i.classification.type === "feature")
+    .reduce((sum, i) => sum + i.classification.points, 0);
+  const guaranteedBugPoints = guaranteed
+    .filter((i) => i.classification.type === "bug")
+    .reduce((sum, i) => sum + i.classification.points, 0);
+
+  const features = sortByPointsThenNumber(rest.filter((i) => i.classification.type === "feature"));
+  const bugs = sortByPointsThenNumber(rest.filter((i) => i.classification.type === "bug"));
+
+  const featureBudget = Math.max(0, config.capacityPoints * config.featureRatio - guaranteedFeaturePoints);
+  const bugBudget = Math.max(0, config.capacityPoints * config.bugRatio - guaranteedBugPoints);
 
   const featureFill = fillBucket(features, featureBudget);
   const bugFill = fillBucket(bugs, bugBudget);
 
   const bucketByNumber = new Map<number, Bucket>();
-  for (const issue of [...featureFill.picked, ...bugFill.picked]) {
+  for (const issue of [...guaranteed, ...featureFill.picked, ...bugFill.picked]) {
     bucketByNumber.set(issue.number, issue.classification.type);
   }
 
-  let totalUsed = featureFill.used + bugFill.used;
-  let leftoverCapacity = config.capacityPoints - totalUsed;
+  let totalUsed = guaranteedFeaturePoints + guaranteedBugPoints + featureFill.used + bugFill.used;
+  let leftoverCapacity = Math.max(0, config.capacityPoints - totalUsed);
 
   const leftoverCandidates = sortByPointsThenNumber([
     ...featureFill.remaining,
@@ -103,6 +117,7 @@ export function allocate(
   const pickedNumbers = new Set(bucketByNumber.keys());
 
   const selected: AllocatedIssue[] = [
+    ...guaranteed,
     ...featureFill.picked,
     ...bugFill.picked,
     ...toppedOff,

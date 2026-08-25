@@ -51,6 +51,11 @@ export interface ConsolidatedEntry {
 
 export interface ClassifiedIssue extends GitHubIssue {
   classification: IssueClassification;
+  // Title of the previous sprint's milestone this issue is still open
+  // under, when it's being force-carried into the new sprint's allocation
+  // (see findPreviousMilestone in lib/github/milestones.ts). Undefined for
+  // every other issue.
+  carriedOverFromMilestone?: string;
 }
 
 export type Bucket = "feature" | "bug";
@@ -110,6 +115,10 @@ export interface PreviewResult {
 export interface ConfirmSelection {
   issueNumber: number;
   bucket: Bucket;
+  // The issue's labels as of preview time — lets confirm strip a stale
+  // status:in-progress label before adding status:todo, since labels are
+  // additive-only (see CLAUDE.md gotcha #3) and would otherwise stack.
+  labels: string[];
 }
 
 // NDJSON events streamed by both /api/run/preview and /api/run/confirm —

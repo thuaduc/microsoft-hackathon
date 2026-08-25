@@ -140,3 +140,56 @@ test("selected issues carry their bucket", () => {
   assert.equal(feature?.bucket, "feature");
   assert.equal(bug?.bucket, "bug");
 });
+
+test("guaranteed carry-over issue is selected even though it'd lose the points tie-break", () => {
+  // #1 (8 pts) would normally lose out to the cheaper features below under
+  // the feature budget (12.6), but it's forced in as a carry-over.
+  const classified = [
+    issue(1, "feature", 8),
+    issue(2, "feature", 3),
+    issue(3, "feature", 2),
+  ];
+
+  const result = allocate(classified, CONFIG, new Set([1]));
+
+  const selectedNumbers = result.selected.map((i) => i.number).sort();
+  assert.deepEqual(selectedNumbers, [1, 2, 3]);
+});
+
+test("guaranteed issue's points reduce its bucket's budget for everyone else", () => {
+  // Feature budget = 12.6, bug budget = 5.4. Guaranteed #1 (10 pts) leaves
+  // only 2.6 for other features, so #3 (2 pts) fits but #2 (3 pts) doesn't
+  // — and with #4 filling the bug budget there's only 1 pt of leftover
+  // capacity, not enough for #2 (3 pts) to sneak in via top-off either.
+  const classified = [
+    issue(1, "feature", 10),
+    issue(2, "feature", 3),
+    issue(3, "feature", 2),
+    issue(4, "bug", 5),
+  ];
+
+  const result = allocate(classified, CONFIG, new Set([1]));
+
+  const selectedNumbers = result.selected.map((i) => i.number).sort();
+  assert.deepEqual(selectedNumbers, [1, 3, 4]);
+  assert.equal(result.unselected.length, 1);
+  assert.equal(result.unselected[0].number, 2);
+});
+
+test("guaranteed issues alone can push the run over capacity", () => {
+  const classified = [issue(1, "feature", 13), issue(2, "bug", 8)];
+
+  const result = allocate(classified, CONFIG, new Set([1, 2]));
+
+  assert.deepEqual(result.selected.map((i) => i.number).sort(), [1, 2]);
+  assert.equal(result.totals.totalPointsUsed, 21);
+  assert.ok(result.totals.totalPointsUsed > result.totals.capacity);
+});
+
+test("with no guaranteed set, allocate behaves exactly as before (default empty set)", () => {
+  const classified = [issue(1, "feature", 5), issue(2, "bug", 3)];
+
+  const result = allocate(classified, CONFIG);
+
+  assert.deepEqual(result.selected.map((i) => i.number).sort(), [1, 2]);
+});
