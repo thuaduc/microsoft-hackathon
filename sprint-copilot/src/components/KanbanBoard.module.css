@@ -1,0 +1,105 @@
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.status,
+.statusError {
+  padding: 48px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.statusError {
+  color: var(--danger-text);
+}
+
+.moveError {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger-text);
+  font-size: 12.5px;
+}
+
+.columns {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.column {
+  flex: 1 1 240px;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  max-height: calc(100vh - 240px);
+}
+
+.column[data-status="todo"] {
+  border-top-color: var(--accent);
+}
+
+.column[data-status="in_progress"] {
+  border-top-color: var(--bug);
+}
+
+.column[data-status="done"] {
+  border-top-color: var(--success);
+}
+
+.column[data-status="cancelled"] {
+  border-top-color: var(--danger);
+}
+
+.columnDragOver {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.columnHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.columnTitle {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.columnCount {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.empty {
+  padding: 8px 4px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+@media (max-width: 600px) {
+  .column {
+    max-height: none;
+  }
+}

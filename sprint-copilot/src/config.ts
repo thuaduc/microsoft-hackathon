@@ -2,6 +2,12 @@ export const CAPACITY_POINTS = 18; // 3 devs (mocked) x 6 pts/dev
 export const FEATURE_RATIO = 0.7;
 export const BUG_RATIO = 0.3;
 
+// Labels marking the two open-and-not-backlog kanban columns. Backlog is
+// the absence of both; Done/Cancel are derived from state_reason instead
+// of a label — see lib/board/status.ts.
+export const STATUS_TODO_LABEL = "status:todo";
+export const STATUS_IN_PROGRESS_LABEL = "status:in-progress";
+
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {

@@ -1,4 +1,5 @@
-import type { GitHubIssue } from "@/types";
+import { STATUS_IN_PROGRESS_LABEL, STATUS_TODO_LABEL } from "@/config";
+import type { BoardStatus, GitHubIssue } from "@/types";
 import { GitHubApiError, githubFetch, githubRequest, parseNextLink } from "./client";
 
 interface RawIssue {
@@ -7,12 +8,24 @@ interface RawIssue {
   title: string;
   body: string | null;
   html_url: string;
-  labels: Array<{ name: string } | string>;
+  labels: Array<{ name: string; color?: string } | string>;
+  assignees: Array<{ login: string; avatar_url: string }> | null;
+  milestone: { number: number; title: string } | null;
   state: "open" | "closed";
+  created_at: string;
+  closed_at: string | null;
+  state_reason: "completed" | "not_planned" | "reopened" | null;
   pull_request?: unknown;
 }
 
 function toGitHubIssue(raw: RawIssue): GitHubIssue {
+  const labelColors: Record<string, string> = {};
+  for (const label of raw.labels) {
+    if (typeof label !== "string" && label.color) {
+      labelColors[label.name] = label.color;
+    }
+  }
+
   return {
     number: raw.number,
     id: raw.id,
@@ -20,16 +33,24 @@ function toGitHubIssue(raw: RawIssue): GitHubIssue {
     body: raw.body,
     html_url: raw.html_url,
     labels: raw.labels.map((label) => (typeof label === "string" ? label : label.name)),
-    state: "open",
+    labelColors,
+    assignees: (raw.assignees ?? []).map((assignee) => ({
+      login: assignee.login,
+      avatarUrl: assignee.avatar_url,
+    })),
+    milestone: raw.milestone ? { number: raw.milestone.number, title: raw.milestone.title } : null,
+    state: raw.state,
+    created_at: raw.created_at,
+    closed_at: raw.closed_at,
+    // "reopened" is a state_reason value GitHub uses transiently; it never
+    // applies to a currently-closed issue, so it collapses to null here.
+    state_reason: raw.state_reason === "reopened" ? null : raw.state_reason,
   };
 }
 
-// GET /repos/{owner}/{repo}/issues also returns pull requests, and is
-// paginated via the Link response header — both handled here so callers
-// just get a clean list of open issues.
-export async function listOpenIssues(owner: string, repo: string): Promise<GitHubIssue[]> {
+async function listIssues(owner: string, repo: string, state: "open" | "all"): Promise<GitHubIssue[]> {
   const issues: GitHubIssue[] = [];
-  let path: string | null = `/repos/${owner}/${repo}/issues?state=open&per_page=100`;
+  let path: string | null = `/repos/${owner}/${repo}/issues?state=${state}&per_page=100`;
 
   while (path) {
     const res = await githubFetch(path);
@@ -51,6 +72,19 @@ export async function listOpenIssues(owner: string, repo: string): Promise<GitHu
   return issues;
 }
 
+// GET /repos/{owner}/{repo}/issues also returns pull requests, and is
+// paginated via the Link response header — both handled here so callers
+// just get a clean list of open issues.
+export async function listOpenIssues(owner: string, repo: string): Promise<GitHubIssue[]> {
+  return listIssues(owner, repo, "open");
+}
+
+// Same as listOpenIssues but includes closed issues too — for the kanban
+// board, which needs the Done/Cancel columns.
+export async function listAllIssues(owner: string, repo: string): Promise<GitHubIssue[]> {
+  return listIssues(owner, repo, "all");
+}
+
 // Additive — never use PATCH .../issues/{n} with a `labels` field, which
 // replaces the whole set and clobbers existing labels.
 export async function applyLabels(
@@ -63,6 +97,61 @@ export async function applyLabels(
     method: "POST",
     body: JSON.stringify({ labels }),
   });
+}
+
+export async function removeLabel(
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  label: string
+): Promise<void> {
+  await githubRequest(
+    `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`,
+    { method: "DELETE" }
+  );
+}
+
+// Moves an issue to the given kanban column: swaps the status:* label (for
+// the open columns) and opens/closes the issue with the matching
+// state_reason (for Done/Cancel) — see lib/board/status.ts for the mapping
+// this is the inverse of. Reads current labels/state first rather than
+// blindly removing both status labels, since DELETE on an absent label 404s.
+export async function setIssueBoardStatus(
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  status: BoardStatus
+): Promise<void> {
+  const current = await githubRequest<RawIssue>(`/repos/${owner}/${repo}/issues/${issueNumber}`);
+  const currentLabels = current.labels.map((label) => (typeof label === "string" ? label : label.name));
+
+  for (const label of [STATUS_TODO_LABEL, STATUS_IN_PROGRESS_LABEL]) {
+    if (currentLabels.includes(label)) {
+      await removeLabel(owner, repo, issueNumber, label);
+    }
+  }
+
+  if (status === "todo") {
+    await applyLabels(owner, repo, issueNumber, [STATUS_TODO_LABEL]);
+  } else if (status === "in_progress") {
+    await applyLabels(owner, repo, issueNumber, [STATUS_IN_PROGRESS_LABEL]);
+  }
+
+  const isOpenColumn = status === "backlog" || status === "todo" || status === "in_progress";
+  if (isOpenColumn && current.state === "closed") {
+    await githubRequest(`/repos/${owner}/${repo}/issues/${issueNumber}`, {
+      method: "PATCH",
+      body: JSON.stringify({ state: "open" }),
+    });
+  } else if (!isOpenColumn) {
+    await githubRequest(`/repos/${owner}/${repo}/issues/${issueNumber}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        state: "closed",
+        state_reason: status === "done" ? "completed" : "not_planned",
+      }),
+    });
+  }
 }
 
 export async function assignIssueToMilestone(

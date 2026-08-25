@@ -5,7 +5,21 @@ export interface GitHubIssue {
   body: string | null;
   html_url: string;
   labels: string[]; // label names only
-  state: "open";
+  labelColors?: Record<string, string>; // label name -> GitHub hex color (no "#"), when known
+  assignees: { login: string; avatarUrl: string }[];
+  milestone: { number: number; title: string } | null;
+  state: "open" | "closed";
+  created_at: string;
+  closed_at: string | null;
+  state_reason: "completed" | "not_planned" | null;
+}
+
+// Kanban column. Derived from state/state_reason/labels — see
+// lib/board/status.ts for the single source of truth on this mapping.
+export type BoardStatus = "backlog" | "todo" | "in_progress" | "done" | "cancelled";
+
+export interface BoardIssue extends GitHubIssue {
+  status: BoardStatus;
 }
 
 export type IssueType = "feature" | "bug";
@@ -13,9 +27,7 @@ export type IssueType = "feature" | "bug";
 export interface IssueClassification {
   issue_number: number; // correlates back to GitHubIssue.number
   type: IssueType;
-  is_epic: boolean;
   points: number; // small fixed scale, e.g. 1/2/3/5/8/13
-  subticket_suggestions?: string[]; // present only if is_epic
   duplicate_of: number | null; // issue_number of a near-duplicate/overlapping issue, if any
 }
 
@@ -59,10 +71,10 @@ export interface WriteOutcome {
   bucket: Bucket;
   milestoneAssigned: boolean;
   labelsApplied: boolean;
-  subIssuesRequested: number;
-  subIssuesCreated: number;
   errors: string[]; // per-item, non-fatal
 }
+
+export type PipelineStage = "fetch" | "classify" | "allocate" | "write";
 
 export interface SprintRunResult {
   ok: boolean;
@@ -70,5 +82,32 @@ export interface SprintRunResult {
   writeOutcomes?: WriteOutcome[];
   consolidated?: ConsolidatedEntry[]; // duplicates excluded before allocation
   totals?: AllocationResult["totals"];
-  error?: { stage: "fetch" | "classify" | "allocate" | "write"; message: string };
+  error?: { stage: PipelineStage; message: string };
 }
+
+// The preview phase's output: what the algorithm proposes, before anything
+// is written to GitHub. selected/unselected can be edited by the user
+// (moved between the two) before confirming — see ConfirmSelection.
+export interface PreviewResult {
+  selected: AllocatedIssue[];
+  unselected: ClassifiedIssue[];
+  consolidated: ConsolidatedEntry[];
+  totals: AllocationResult["totals"];
+}
+
+// One issue's final in/out-of-sprint decision, as sent back to the confirm
+// endpoint after the user has reviewed and optionally adjusted the preview.
+export interface ConfirmSelection {
+  issueNumber: number;
+  bucket: Bucket;
+}
+
+// NDJSON events streamed by both /api/run/preview and /api/run/confirm —
+// one JSON object per line. "log" lines are narration; "preview"/"result"
+// are the terminal success payload for each endpoint; "error" ends the
+// stream early (no retries — see CLAUDE.md).
+export type PipelineEvent =
+  | { type: "log"; message: string }
+  | { type: "preview"; payload: PreviewResult }
+  | { type: "result"; payload: SprintRunResult }
+  | { type: "error"; stage: PipelineStage; message: string };
