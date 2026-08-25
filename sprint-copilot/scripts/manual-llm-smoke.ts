@@ -11,8 +11,8 @@ async function main() {
   const classifications = await classifyIssues(issues);
   for (const c of classifications) {
     console.log(
-      `#${c.issue_number}  ${c.type.padEnd(7)}  points=${c.points}  epic=${c.is_epic}` +
-        (c.subticket_suggestions ? `  subtickets=${c.subticket_suggestions.length}` : "")
+      `#${c.issue_number}  ${c.type.padEnd(7)}  points=${c.points}` +
+        (c.duplicate_of != null ? `  duplicate_of=#${c.duplicate_of}` : "")
     );
   }
   console.log("\nSmoke test passed.");

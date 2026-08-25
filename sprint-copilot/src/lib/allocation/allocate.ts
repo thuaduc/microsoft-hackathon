@@ -6,6 +6,30 @@ import type {
   ClassifiedIssue,
 } from "../../types.ts";
 
+// Recomputes totals for an arbitrary set of selected issues — used by the
+// review/adapt screen to keep point totals live as the user toggles issues
+// in and out, without re-running the allocation algorithm. Takes a minimal
+// shape (not the full AllocatedIssue) so the client can call it with its
+// own lightweight review-state objects.
+export function computeTotals(
+  selected: Array<{ bucket: Bucket; points: number }>,
+  config: Pick<AllocationConfig, "capacityPoints">
+): AllocationResult["totals"] {
+  const featurePointsUsed = selected
+    .filter((i) => i.bucket === "feature")
+    .reduce((sum, i) => sum + i.points, 0);
+  const bugPointsUsed = selected
+    .filter((i) => i.bucket === "bug")
+    .reduce((sum, i) => sum + i.points, 0);
+
+  return {
+    featurePointsUsed,
+    bugPointsUsed,
+    totalPointsUsed: featurePointsUsed + bugPointsUsed,
+    capacity: config.capacityPoints,
+  };
+}
+
 function sortByPointsThenNumber(issues: ClassifiedIssue[]): ClassifiedIssue[] {
   return [...issues].sort((a, b) => {
     const pointsDiff = a.classification.points - b.classification.points;
@@ -88,21 +112,10 @@ export function allocate(
     (issue) => !pickedNumbers.has(issue.number)
   );
 
-  const featurePointsUsed = selected
-    .filter((i) => i.bucket === "feature")
-    .reduce((sum, i) => sum + i.classification.points, 0);
-  const bugPointsUsed = selected
-    .filter((i) => i.bucket === "bug")
-    .reduce((sum, i) => sum + i.classification.points, 0);
+  const totals = computeTotals(
+    selected.map((i) => ({ bucket: i.bucket, points: i.classification.points })),
+    config
+  );
 
-  return {
-    selected,
-    unselected,
-    totals: {
-      featurePointsUsed,
-      bugPointsUsed,
-      totalPointsUsed: featurePointsUsed + bugPointsUsed,
-      capacity: config.capacityPoints,
-    },
-  };
+  return { selected, unselected, totals };
 }

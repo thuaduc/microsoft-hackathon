@@ -11,8 +11,6 @@
       "bucket": "bug",
       "milestoneAssigned": true,
       "labelsApplied": true,
-      "subIssuesRequested": 0,
-      "subIssuesCreated": 0,
       "errors": []
     },
     {
@@ -20,8 +18,6 @@
       "bucket": "bug",
       "milestoneAssigned": true,
       "labelsApplied": true,
-      "subIssuesRequested": 0,
-      "subIssuesCreated": 0,
       "errors": []
     },
     {
@@ -29,8 +25,6 @@
       "bucket": "bug",
       "milestoneAssigned": true,
       "labelsApplied": true,
-      "subIssuesRequested": 0,
-      "subIssuesCreated": 0,
       "errors": []
     },
     {
@@ -38,8 +32,6 @@
       "bucket": "feature",
       "milestoneAssigned": true,
       "labelsApplied": true,
-      "subIssuesRequested": 0,
-      "subIssuesCreated": 0,
       "errors": []
     },
     {
@@ -47,8 +39,6 @@
       "bucket": "feature",
       "milestoneAssigned": true,
       "labelsApplied": true,
-      "subIssuesRequested": 0,
-      "subIssuesCreated": 0,
       "errors": []
     },
     {
@@ -56,8 +46,6 @@
       "bucket": "feature",
       "milestoneAssigned": true,
       "labelsApplied": true,
-      "subIssuesRequested": 0,
-      "subIssuesCreated": 0,
       "errors": []
     },
     {
@@ -65,11 +53,10 @@
       "bucket": "feature",
       "milestoneAssigned": true,
       "labelsApplied": true,
-      "subIssuesRequested": 3,
-      "subIssuesCreated": 3,
       "errors": []
     }
   ],
+  "consolidated": [],
   "totals": {
     "featurePointsUsed": 12,
     "bugPointsUsed": 5,

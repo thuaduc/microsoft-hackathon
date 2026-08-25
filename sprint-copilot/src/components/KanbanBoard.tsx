@@ -7,6 +7,11 @@ import type { BoardIssue, BoardStatus } from "@/types";
 
 type LoadStatus = "loading" | "done" | "error";
 
+interface Milestone {
+  number: number;
+  title: string;
+}
+
 const COLUMNS: { key: BoardStatus; label: string }[] = [
   { key: "backlog", label: "Backlog" },
   { key: "todo", label: "Todo" },
@@ -15,9 +20,19 @@ const COLUMNS: { key: BoardStatus; label: string }[] = [
   { key: "cancelled", label: "Cancel" },
 ];
 
+// Backlog is the pool sprints get built from, so it's always shown in full;
+// the other columns scope to whichever sprint is selected in the nav.
+function isIssueInColumn(issue: BoardIssue, columnKey: BoardStatus, selectedMilestone: number | null) {
+  if (issue.status !== columnKey) return false;
+  if (columnKey === "backlog") return true;
+  return issue.milestone?.number === selectedMilestone;
+}
+
 export default function KanbanBoard() {
   const [loadStatus, setLoadStatus] = useState<LoadStatus>("loading");
   const [issues, setIssues] = useState<BoardIssue[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [selectedMilestone, setSelectedMilestone] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | undefined>();
   const [moveError, setMoveError] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<BoardStatus | null>(null);
@@ -35,6 +50,8 @@ export default function KanbanBoard() {
           return;
         }
         setIssues(data.issues);
+        setMilestones(data.milestones);
+        setSelectedMilestone(data.milestones.at(-1)?.number ?? null);
         setLoadStatus("done");
       } catch (err) {
         if (cancelled) return;
@@ -47,6 +64,19 @@ export default function KanbanBoard() {
       cancelled = true;
     };
   }, []);
+
+  const selectedIndex = milestones.findIndex((m) => m.number === selectedMilestone);
+  const selectedSprint = selectedIndex >= 0 ? milestones[selectedIndex] : null;
+
+  function goToPreviousSprint() {
+    if (selectedIndex > 0) setSelectedMilestone(milestones[selectedIndex - 1].number);
+  }
+
+  function goToNextSprint() {
+    if (selectedIndex >= 0 && selectedIndex < milestones.length - 1) {
+      setSelectedMilestone(milestones[selectedIndex + 1].number);
+    }
+  }
 
   // Optimistic: the card moves immediately; on failure it snaps back and
   // an inline message shows why — no retries, matching the app's minimal
@@ -105,10 +135,33 @@ export default function KanbanBoard() {
 
   return (
     <div className={styles.board}>
+      <div className={styles.sprintNav}>
+        <button
+          type="button"
+          className={styles.sprintNavButton}
+          onClick={goToPreviousSprint}
+          disabled={selectedIndex <= 0}
+          aria-label="Previous sprint"
+        >
+          ‹
+        </button>
+        <span className={styles.sprintNavLabel}>
+          {selectedSprint ? `Sprint ${selectedIndex + 1}` : "No sprints yet"}
+        </span>
+        <button
+          type="button"
+          className={styles.sprintNavButton}
+          onClick={goToNextSprint}
+          disabled={selectedIndex < 0 || selectedIndex >= milestones.length - 1}
+          aria-label="Next sprint"
+        >
+          ›
+        </button>
+      </div>
       {moveError && <p className={styles.moveError}>{moveError}</p>}
       <div className={styles.columns}>
         {COLUMNS.map((column) => {
-          const columnIssues = issues.filter((issue) => issue.status === column.key);
+          const columnIssues = issues.filter((issue) => isIssueInColumn(issue, column.key, selectedMilestone));
           const isDragOver = dragOverColumn === column.key;
           return (
             <div

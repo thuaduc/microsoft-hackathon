@@ -9,12 +9,7 @@ const CONFIG: AllocationConfig = {
   bugRatio: 0.3,
 };
 
-function issue(
-  number: number,
-  type: "feature" | "bug",
-  points: number,
-  isEpic = false
-): ClassifiedIssue {
+function issue(number: number, type: "feature" | "bug", points: number): ClassifiedIssue {
   return {
     number,
     id: 1000 + number,
@@ -22,11 +17,15 @@ function issue(
     body: null,
     html_url: `https://github.com/example/demo-repo/issues/${number}`,
     labels: [],
+    assignees: [],
+    milestone: null,
     state: "open",
+    created_at: "2026-01-01T00:00:00Z",
+    closed_at: null,
+    state_reason: null,
     classification: {
       issue_number: number,
       type,
-      is_epic: isEpic,
       points,
       duplicate_of: null,
     },
@@ -129,16 +128,6 @@ test("ties within a bucket break ascending by issue number", () => {
     result.selected.map((i) => i.number),
     [1, 2, 3]
   );
-});
-
-test("epic points count toward capacity like any other issue", () => {
-  const classified = [issue(1, "feature", 8, true), issue(2, "bug", 3)];
-
-  const result = allocate(classified, CONFIG);
-
-  const epic = result.selected.find((i) => i.number === 1);
-  assert.ok(epic);
-  assert.equal(result.totals.featurePointsUsed, 8);
 });
 
 test("selected issues carry their bucket", () => {

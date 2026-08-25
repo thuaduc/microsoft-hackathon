@@ -2,7 +2,7 @@
 
 import styles from "./RunButton.module.css";
 
-type Status = "idle" | "loading" | "done" | "error";
+type Status = "idle" | "previewing" | "error";
 
 export default function RunButton({
   status,
@@ -11,8 +11,8 @@ export default function RunButton({
   status: Status;
   onClick: () => void;
 }) {
-  const isLoading = status === "loading";
-  const label = status === "idle" ? "Run sprint" : isLoading ? "Running" : "Run again";
+  const isLoading = status === "previewing";
+  const label = status === "error" ? "Try again" : isLoading ? "Previewing" : "Preview sprint";
 
   return (
     <div className={styles.row}>
@@ -28,7 +28,8 @@ export default function RunButton({
       </button>
       {status === "idle" && (
         <span className={styles.hint}>
-          Runs the full pipeline in one shot — no confirmation step.
+          Classifies and allocates the backlog, then lets you review and adapt
+          before anything is written to GitHub.
         </span>
       )}
     </div>

@@ -18,19 +18,10 @@ const CLASSIFICATION_SCHEMA = {
         properties: {
           issue_number: { type: "integer" },
           type: { type: "string", enum: ["feature", "bug"] },
-          is_epic: { type: "boolean" },
           points: { type: "integer", enum: POINT_SCALE },
-          subticket_suggestions: { type: "array", items: { type: "string" } },
           duplicate_of: { type: ["integer", "null"] },
         },
-        required: [
-          "issue_number",
-          "type",
-          "is_epic",
-          "points",
-          "subticket_suggestions",
-          "duplicate_of",
-        ],
+        required: ["issue_number", "type", "points", "duplicate_of"],
         additionalProperties: false,
       },
     },
@@ -42,16 +33,15 @@ const CLASSIFICATION_SCHEMA = {
 interface RawClassification {
   issue_number: number;
   type: string;
-  is_epic: boolean;
   points: number;
-  subticket_suggestions: string[];
   duplicate_of: number | null;
 }
 
 export async function classifyIssues(
-  issues: GitHubIssue[]
+  issues: GitHubIssue[],
+  teamPreferences?: string
 ): Promise<IssueClassification[]> {
-  const { system, user } = buildClassificationPrompt(issues);
+  const { system, user } = buildClassificationPrompt(issues, teamPreferences);
   const client = new OpenAI({ apiKey: getOpenAIKey() });
 
   let response;
@@ -124,13 +114,9 @@ export async function classifyIssues(
     const classification: IssueClassification = {
       issue_number: item.issue_number,
       type: item.type as IssueType,
-      is_epic: item.is_epic,
       points: item.points,
       duplicate_of: duplicateOf,
     };
-    if (item.is_epic && item.subticket_suggestions.length > 0) {
-      classification.subticket_suggestions = item.subticket_suggestions;
-    }
     return classification;
   });
 

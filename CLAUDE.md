@@ -8,13 +8,18 @@ read it before touching any track.
    The user has an OpenAI key available; do not substitute Anthropic, Gemini, or
    anything else even if it seems more convenient.
 
-2. **Approach A: one button, fully atomic.** The pipeline is
-   scrape → classify → allocate → write, triggered by a single click, with no
-   intermediate review/confirm screen. Do not add one. (The UI also shows a
-   live backlog overview — every open issue, unfiltered — above the button;
-   that's informational only, not a preview of the algorithm's picks, so it
-   doesn't count as a confirm step. See PLAN.md's "Live backlog overview"
-   addendum.)
+2. **Approach B: two-phase, preview then confirm.** (Supersedes the original
+   Approach A "fully atomic, no confirm step" — that constraint was
+   deliberately reversed; do not revert to it.) The pipeline is scrape →
+   classify → allocate, streamed live to the UI as an activity log ending in
+   a preview of the proposed sprint (no GitHub writes yet). The user can
+   toggle issues in/out of that preview before clicking "Confirm & write,"
+   which streams the write phase (milestone → per-issue assign/label) and is
+   the only point anything is written to GitHub. Cancelling the review screen
+   discards the preview with no writes made. (The UI also shows a live
+   backlog overview — every open issue, unfiltered — above the flow; that's
+   informational only, separate from the preview/review step. See PLAN.md's
+   "Live backlog overview" addendum.)
 
 2a. **No mock data in the shipped app.** `/api/run` and `/api/issues` call the
     real GitHub/OpenAI modules — `src/fixtures/*.json` are reference data only,

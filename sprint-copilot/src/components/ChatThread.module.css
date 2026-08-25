@@ -1,0 +1,175 @@
+/* Empty state — centered greeting + pill input, ChatGPT-style */
+
+.hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  width: 100%;
+  padding: 24px;
+}
+
+.heroHeadline {
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  max-width: 620px;
+}
+
+.suggestion {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .suggestion:hover {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+  }
+}
+
+/* Active conversation — scrolling thread + bottom-pinned input */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 32px 24px 12px;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.userRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.assistantRow {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.userBubble {
+  max-width: 75%;
+  padding: 10px 16px;
+  border-radius: 20px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assistantText {
+  max-width: 100%;
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.errorText {
+  font-size: 12.5px;
+  color: var(--danger-text);
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.inputBar {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  padding: 12px 24px 24px;
+}
+
+.inputBar .inputPill {
+  width: 100%;
+  max-width: 680px;
+}
+
+/* Shared pill input */
+
+.inputPill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 680px;
+  height: 56px;
+  padding: 0 10px 0 20px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(15, 17, 21, 0.04), 0 12px 32px rgba(15, 17, 21, 0.07);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  font-size: 16px;
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.sendButton {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  color: var(--surface);
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.sendButton:disabled {
+  background: var(--surface-raised);
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sendButton:not(:disabled):hover {
+    background: var(--accent);
+  }
+}

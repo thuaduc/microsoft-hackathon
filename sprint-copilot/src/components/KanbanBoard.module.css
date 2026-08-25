@@ -4,6 +4,41 @@
   gap: 12px;
 }
 
+.sprintNav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+}
+
+.sprintNavButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+  line-height: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
+
+.sprintNavButton:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.sprintNavLabel {
+  min-width: 110px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 .status,
 .statusError {
   padding: 48px 0;

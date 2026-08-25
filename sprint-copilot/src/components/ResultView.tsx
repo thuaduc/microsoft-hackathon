@@ -131,11 +131,6 @@ export default function ResultView({ result }: { result: SprintRunResult }) {
                 >
                   {o.labelsApplied ? <CheckIcon /> : <DashIcon />} Labels
                 </span>
-                {o.subIssuesRequested > 0 && (
-                  <span className={styles.subIssues}>
-                    {o.subIssuesCreated}/{o.subIssuesRequested} sub-issues
-                  </span>
-                )}
               </div>
               {o.errors.length > 0 && (
                 <p className={styles.itemError}>{o.errors.join(" · ")}</p>

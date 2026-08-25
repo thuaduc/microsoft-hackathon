@@ -1,0 +1,160 @@
+.page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 40px 40px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-data);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent-text);
+}
+
+.eyebrow::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.headline {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.subhead {
+  max-width: 560px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgba(15, 17, 21, 0.04), 0 16px 40px rgba(15, 17, 21, 0.08);
+}
+
+.label {
+  font-family: var(--font-data);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.textarea:focus-visible {
+  border-color: var(--accent-border);
+}
+
+.examples {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.examplesLabel {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.exampleChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.exampleChip {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .exampleChip:hover {
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+    background: var(--surface-raised);
+  }
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.saveHint {
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+
+.saveButton {
+  height: 38px;
+  padding: 0 20px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .saveButton:hover {
+    background: var(--accent-hover);
+  }
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding: 24px 20px 32px;
+  }
+}

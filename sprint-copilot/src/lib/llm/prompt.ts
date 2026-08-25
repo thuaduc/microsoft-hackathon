@@ -10,7 +10,10 @@ function truncateBody(body: string | null): string {
     : body;
 }
 
-export function buildClassificationPrompt(issues: GitHubIssue[]): {
+export function buildClassificationPrompt(
+  issues: GitHubIssue[],
+  teamPreferences?: string
+): {
   system: string;
   user: string;
 } {
@@ -18,12 +21,7 @@ export function buildClassificationPrompt(issues: GitHubIssue[]): {
     "You are a sprint planning assistant classifying GitHub issues for a software team.",
     "For every issue given, decide:",
     '- type: "feature" (new capability/enhancement) or "bug" (something broken).',
-    "- is_epic: true if the issue describes work large enough to be split into several",
-    "  independent sub-tickets (e.g. it spans multiple components or clearly bundles",
-    "  several pieces of work); false for a single, well-scoped change.",
     `- points: estimated effort, chosen ONLY from this fixed scale: ${POINT_SCALE.join(", ")}.`,
-    "- subticket_suggestions: when is_epic is true, 2-5 short titles for the sub-tickets",
-    "  this epic should be split into; an empty array when is_epic is false.",
     "- duplicate_of: if this issue clearly describes the same underlying problem or",
     "  request as another issue IN THIS SAME BATCH (not something you recall from",
     "  elsewhere), set this to that other issue's number. Only flag near-duplicates —",
@@ -32,6 +30,15 @@ export function buildClassificationPrompt(issues: GitHubIssue[]): {
     "  the batch duplicate each other, pick either one as the canonical issue and set",
     "  duplicate_of only on the other.",
     "Classify every issue given — do not skip or invent any.",
+    ...(teamPreferences?.trim()
+      ? [
+          "",
+          "The team has also given these preferences to weigh when classifying",
+          "(e.g. they can shift how you judge effort or urgency, but never override",
+          "the type/points/duplicate_of rules above):",
+          teamPreferences.trim(),
+        ]
+      : []),
   ].join("\n");
 
   const user = [

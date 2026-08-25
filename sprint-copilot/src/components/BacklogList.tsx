@@ -1,3 +1,4 @@
+import { contrastTextColor, pickTypeLabel } from "@/lib/labels";
 import type { GitHubIssue } from "@/types";
 import styles from "./BacklogList.module.css";
 
@@ -39,28 +40,52 @@ export default function BacklogList({
 
   return (
     <ul className={styles.list}>
-      {issues.map((issue) => (
-        <li key={issue.number} className={styles.row}>
-          <a
-            className={styles.link}
-            href={issue.html_url}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <span className={styles.number}>#{issue.number}</span>
-            <span className={styles.title}>{issue.title}</span>
-            {issue.labels.length > 0 && (
-              <span className={styles.labels}>
-                {issue.labels.map((label) => (
-                  <span key={label} className={styles.label}>
-                    {label}
-                  </span>
-                ))}
-              </span>
-            )}
-          </a>
-        </li>
-      ))}
+      {issues.map((issue) => {
+        const typeLabel = pickTypeLabel(issue.labels);
+        const otherLabels = issue.labels.filter((label) => label !== typeLabel);
+        const typeColor = typeLabel ? issue.labelColors?.[typeLabel] : undefined;
+
+        return (
+          <li key={issue.number} className={styles.row}>
+            <a
+              className={styles.link}
+              href={issue.html_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span className={styles.number}>#{issue.number}</span>
+              <span className={styles.title}>{issue.title}</span>
+              {(typeLabel || otherLabels.length > 0) && (
+                <span className={styles.labels}>
+                  {typeLabel && (
+                    <span
+                      className={styles.typeLabel}
+                      style={
+                        typeColor
+                          ? { background: `#${typeColor}`, color: contrastTextColor(typeColor) }
+                          : undefined
+                      }
+                    >
+                      {typeLabel}
+                    </span>
+                  )}
+                  {otherLabels.map((label) => {
+                    const color = issue.labelColors?.[label];
+                    return (
+                      <span key={label} className={styles.label}>
+                        {color && (
+                          <span className={styles.labelDot} style={{ background: `#${color}` }} />
+                        )}
+                        {label}
+                      </span>
+                    );
+                  })}
+                </span>
+              )}
+            </a>
+          </li>
+        );
+      })}
     </ul>
   );
 }

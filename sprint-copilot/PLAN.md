@@ -29,14 +29,25 @@ package.json/CI/env files. The app will live in a new `sprint-copilot/` subdirec
 - LLM: OpenAI API (user has a key available — **use OpenAI, no other LLM provider**), one batched call classifying all issues at once.
 - Target repo: configurable via env vars (owner/repo).
 - Sprint container: a real GitHub Milestone.
-- Epic tickets: real GitHub sub-issues, linked to the parent via the GitHub
-  sub-issues API — not plain issues with a text reference.
+- **Epic tickets / sub-issue splitting: OUT OF SCOPE for now** (descoped after
+  initial build — see CLAUDE.md 2b). Classification no longer detects epics or
+  suggests subtickets; `/api/run` does not create or link sub-issues. The
+  original design below (sub-issue creation, epic detection in the LLM schema,
+  `subIssuesRequested`/`subIssuesCreated`) is left in this doc as history —
+  don't rebuild it from these sections without an explicit ask. The low-level
+  `createSubIssue()` capability in `src/lib/github/issues.ts` still exists and
+  is still tested, just unused by the pipeline.
 - Feature/bug ratio: fixed constant, 70% feature points / 30% bug points.
 - Team capacity: hardcoded constants — 3 devs × 6 pts/dev = 18 points.
 - Epic detection: done by the LLM in the same classify call.
-- No review/confirm step — Approach A, fully atomic. (The live backlog overview,
-  added below, is informational only — it lists all open issues, not the
-  algorithm's picks — so it doesn't reintroduce a confirm-before-write step.)
+- **Approach A → Approach B (post-build change, see "Preview/confirm split"
+  addendum below): a review/confirm step was deliberately added.** The
+  original "no review/confirm step, Approach A, fully atomic" decision below
+  is left as history — it no longer holds. The pipeline is now
+  scrape → classify → allocate → **preview (streamed activity log, no
+  writes)** → user reviews/adapts → confirm → write (also streamed). (The
+  live backlog overview, added below, is a separate, always-on informational
+  panel — it lists all open issues, not the algorithm's picks.)
 - Minimal error handling: catch failures per pipeline stage, show a plain message,
   no retries, no rollback of partial GitHub writes.
 - Minimal testing: one unit-tested pure module (allocation) + a manual E2E checklist.
@@ -339,6 +350,55 @@ This addendum makes Track D self-sufficient for a full real run: it no longer
 needs a separate "integration" session to wire `app/api/run/route.ts`, since
 Track A/B/C's real modules are already available on `main` to import directly.
 
+### Addendum — preview/confirm split with a streamed activity log (Approach A → B)
+
+The user asked for two things Approach A explicitly ruled out: visibility
+into what the agent is doing while it runs, and a chance to review/adapt the
+sprint before anything is written to GitHub. This reverses the "fully
+atomic, no confirm step" decision — see CLAUDE.md point 2 (now Approach B).
+
+`app/api/run/route.ts` (the old atomic endpoint) is deleted, replaced by two
+NDJSON-streaming endpoints sharing a small `ndjsonStream()` helper
+(`src/lib/stream/ndjson.ts`) that flushes one JSON line per `emit()` call
+instead of buffering the whole response:
+
+```ts
+// POST /api/run/preview — fetch -> classify -> consolidate -> allocate.
+// Streams {type:"log", message} lines, ends with {type:"preview", payload: PreviewResult}
+// or {type:"error", stage, message}. Makes no GitHub writes.
+
+// POST /api/run/confirm — body { selected: ConfirmSelection[], milestoneTitle, totals }.
+// Streams write-phase log lines (createMilestone, then per-issue assign+label),
+// ends with {type:"result", payload: SprintRunResult} or {type:"error", ...}.
+```
+
+Classify stays one batched OpenAI call (unchanged) — its log narration is a
+before/after summary ("Classifying N issues…" / "Classified N (X feature /
+Y bug)"), not real per-issue streaming, since the whole batch resolves at
+once. Fetch and the write loop stream per-item naturally, since those really
+are sequential GitHub calls.
+
+The client reads these with `readNdjsonStream()` (`src/lib/pipeline/stream.ts`,
+a `fetch()` + `ReadableStream` reader — not `EventSource`, since confirm
+needs to POST a body) instead of `GET /api/run`. New components:
+`ActivityLog.tsx` (persists the accumulated log lines across both phases,
+pulses while a stream is live) and `ReviewPanel.tsx` (checkboxes to move
+issues between selected/unselected, editable milestone title, live point
+totals via a new `computeTotals()` export in `allocation/allocate.ts`,
+Confirm/Cancel buttons). `page.tsx` status becomes
+`idle → previewing → reviewing → writing → done/error`; cancelling from
+`reviewing` returns to `idle` with no GitHub writes made.
+
+Error handling keeps the same minimal bar as before: a stage failure
+(fetch/classify/allocate throwing, or milestone creation itself failing)
+emits one `error` event and ends the stream — no retries, no rollback.
+Per-issue write failures still land as non-fatal entries on that issue's
+`WriteOutcome.errors`, same as the original atomic pipeline.
+
+Live-tested against the real target repo: preview correctly fetched,
+classified, and allocated a real backlog; confirm correctly created a real
+milestone and assigned/labeled a real issue, streaming progress the whole way.
+
 ## Dependency graph
 
 ```
@@ -421,20 +481,28 @@ catching errors per stage into `SprintRunResult.error`.
    `GITHUB_REPO`, `OPENAI_API_KEY`.
 2. Load the page: backlog overview loads and lists every open issue in the
    target repo (matches the GitHub UI's open-issues count), idle state shows
-   one button, no console errors.
-3. Click it: loading state shows immediately, button disables (no double-submit).
-4. A new Milestone appears on the target repo with a sane title.
-5. Selected issues are assigned to that milestone on GitHub (not just in the UI).
-6. Each selected issue has `agent-drafted` + correct `type: feature`/`type: bug`
+   "Preview sprint", no console errors.
+3. Click "Preview sprint": activity log appears and streams progress lines
+   live (fetch → classify → consolidate → allocate), ending with a review
+   screen — no GitHub writes have happened yet at this point (verify no new
+   Milestone exists).
+4. In the review screen, toggle an issue in/out: the point total and issue
+   count update immediately, no network request fires.
+5. Click "Cancel": returns to idle, no GitHub writes made.
+6. Preview again, edit the milestone title, leave the default toggles, click
+   "Confirm & write to GitHub": activity log resumes streaming (milestone →
+   per-issue assign/label), ending in the result view.
+7. A new Milestone appears on the target repo with the edited title.
+8. Selected issues are assigned to that milestone on GitHub (not just in the UI).
+9. Each selected issue has `agent-drafted` + correct `type: feature`/`type: bug`
    labels, and pre-existing labels on those issues weren't removed.
-7. Any issue the LLM flagged `is_epic` has real sub-issues showing under
-   "Sub-issues" on the parent in the GitHub UI.
-8. UI totals (feature/bug points used, total, capacity) match a hand-check
-   against the selected issues' points and the 70/30 split.
-9. Re-run the button against the same repo (issues already labeled/milestoned)
-   and confirm it doesn't crash.
-10. Force one failure path: temporarily use an invalid `OPENAI_API_KEY`,
-    confirm the UI shows a plain error with `stage: "classify"` and doesn't hang.
+10. UI totals (feature/bug points used, total, capacity) match a hand-check
+    against the toggled selection and the 70/30 split.
+11. Re-run the flow against the same repo (issues already labeled/milestoned)
+    and confirm it doesn't crash.
+12. Force one failure path: temporarily use an invalid `OPENAI_API_KEY`,
+    confirm the activity log/error view shows a plain error with
+    `stage: "classify"`, doesn't hang, and no Milestone was created.
 
 ## Critical files
 
@@ -442,6 +510,11 @@ catching errors per stage into `SprintRunResult.error`.
 - `sprint-copilot/src/lib/github/issues.ts`
 - `sprint-copilot/src/lib/llm/classify.ts`
 - `sprint-copilot/src/lib/allocation/allocate.ts`
-- `sprint-copilot/src/app/api/run/route.ts`
+- `sprint-copilot/src/lib/stream/ndjson.ts`
+- `sprint-copilot/src/lib/pipeline/stream.ts`
+- `sprint-copilot/src/app/api/run/preview/route.ts`
+- `sprint-copilot/src/app/api/run/confirm/route.ts`
 - `sprint-copilot/src/app/api/issues/route.ts`
 - `sprint-copilot/src/components/BacklogList.tsx`
+- `sprint-copilot/src/components/ActivityLog.tsx`
+- `sprint-copilot/src/components/ReviewPanel.tsx`
