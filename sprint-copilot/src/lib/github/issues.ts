@@ -111,6 +111,18 @@ export async function removeLabel(
   );
 }
 
+export async function commentOnIssue(
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  body: string
+): Promise<void> {
+  await githubRequest(`/repos/${owner}/${repo}/issues/${issueNumber}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
 // Moves an issue to the given kanban column: swaps the status:* label (for
 // the open columns) and opens/closes the issue with the matching
 // state_reason (for Done/Cancel) — see lib/board/status.ts for the mapping

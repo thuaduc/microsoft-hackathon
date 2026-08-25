@@ -17,6 +17,12 @@ function formatPts(points: number): string {
   return Number.isInteger(points) ? String(points) : points.toFixed(1);
 }
 
+type ActionStatus = "idle" | "loading" | "done" | "error";
+
+function message(err: unknown): string {
+  return err instanceof Error ? err.message : "Request failed.";
+}
+
 // Same repo, so the canonical issue's URL is the excluded issue's URL with
 // the number swapped — avoids threading a second URL through the whole
 // consolidate/preview pipeline just for this link.
@@ -103,6 +109,12 @@ export default function ReviewPanel({
 }) {
   const [issues, setIssues] = useState<ReviewIssue[]>(() => toReviewIssues(preview));
   const [milestoneTitle, setMilestoneTitle] = useState(defaultMilestoneTitle);
+  // Immediate GitHub writes, unlike the rest of this screen (which only
+  // writes on Confirm) — the review checklist is unaffected by these
+  // besides possibly-stale issues getting deselected once closed (see
+  // handleCloseOutdated), since they'd otherwise still get milestoned.
+  const [duplicateActions, setDuplicateActions] = useState<Record<number, ActionStatus>>({});
+  const [staleActions, setStaleActions] = useState<Record<number, ActionStatus>>({});
 
   const totals = useMemo(() => {
     const selected = issues.filter((i) => i.inSprint);
@@ -128,6 +140,43 @@ export default function ReviewPanel({
     setIssues((prev) =>
       prev.map((issue) => (issue.number === number ? { ...issue, inSprint: !issue.inSprint } : issue))
     );
+  }
+
+  async function handleConsolidate(entry: ConsolidatedEntry) {
+    setDuplicateActions((prev) => ({ ...prev, [entry.issueNumber]: "loading" }));
+    try {
+      const res = await fetch(`/api/board/${entry.issueNumber}/consolidate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ duplicateOfIssueNumber: entry.duplicateOfIssueNumber }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Request failed.");
+      setDuplicateActions((prev) => ({ ...prev, [entry.issueNumber]: "done" }));
+    } catch (err) {
+      setDuplicateActions((prev) => ({ ...prev, [entry.issueNumber]: "error" }));
+      console.error(`Failed to consolidate #${entry.issueNumber}:`, message(err));
+    }
+  }
+
+  async function handleCloseOutdated(issueNumber: number) {
+    setStaleActions((prev) => ({ ...prev, [issueNumber]: "loading" }));
+    try {
+      const res = await fetch(`/api/board/${issueNumber}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled" }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Request failed.");
+      setStaleActions((prev) => ({ ...prev, [issueNumber]: "done" }));
+      // It's now closed on GitHub — don't let it still get milestoned/labeled
+      // on Confirm just because it was checked before you closed it here.
+      setIssues((prev) =>
+        prev.map((issue) => (issue.number === issueNumber ? { ...issue, inSprint: false } : issue))
+      );
+    } catch (err) {
+      setStaleActions((prev) => ({ ...prev, [issueNumber]: "error" }));
+      console.error(`Failed to close #${issueNumber}:`, message(err));
+    }
   }
 
   function handleConfirm() {
@@ -244,6 +293,10 @@ export default function ReviewPanel({
         </div>
       </div>
 
+      <div className={styles.columns}>
+        {labelGroups.map(([label, groupIssues]) => renderColumn(label, groupIssues))}
+      </div>
+
       {(preview.consolidated.length > 0 || staleIssues.length > 0) && (
         <div className={styles.flagsRow}>
           {preview.consolidated.length > 0 && (
@@ -253,25 +306,40 @@ export default function ReviewPanel({
                 <span className={styles.columnMeta}>{preview.consolidated.length}</span>
               </div>
               <ul className={styles.duplicatesList}>
-                {preview.consolidated.map((entry) => (
-                  <li key={entry.issueNumber} className={styles.duplicateItem}>
-                    <span className={styles.issueNumber}>#{entry.issueNumber}</span>
-                    <a
-                      className={styles.issueTitle}
-                      href={entry.issueUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {entry.issueTitle}
-                    </a>
-                    <span className={styles.duplicateOfNote}>
-                      duplicate of{" "}
-                      <a href={duplicateOfUrl(entry)} target="_blank" rel="noopener noreferrer">
-                        #{entry.duplicateOfIssueNumber} {entry.duplicateOfTitle}
+                {preview.consolidated.map((entry) => {
+                  const status = duplicateActions[entry.issueNumber] ?? "idle";
+                  return (
+                    <li key={entry.issueNumber} className={styles.duplicateItem}>
+                      <span className={styles.issueNumber}>#{entry.issueNumber}</span>
+                      <a
+                        className={styles.issueTitle}
+                        href={entry.issueUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {entry.issueTitle}
                       </a>
-                    </span>
-                  </li>
-                ))}
+                      <span className={styles.duplicateOfNote}>
+                        duplicate of{" "}
+                        <a href={duplicateOfUrl(entry)} target="_blank" rel="noopener noreferrer">
+                          #{entry.duplicateOfIssueNumber} {entry.duplicateOfTitle}
+                        </a>
+                      </span>
+                      {status === "done" ? (
+                        <span className={styles.flagActionDone}>closed ✓</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.flagActionButton}
+                          onClick={() => handleConsolidate(entry)}
+                          disabled={status === "loading"}
+                        >
+                          {status === "loading" ? "Closing…" : status === "error" ? "Retry" : "Consolidate"}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -283,29 +351,40 @@ export default function ReviewPanel({
                 <span className={styles.columnMeta}>{staleIssues.length}</span>
               </div>
               <ul className={styles.duplicatesList}>
-                {staleIssues.map((issue) => (
-                  <li key={issue.number} className={styles.duplicateItem}>
-                    <span className={styles.issueNumber}>#{issue.number}</span>
-                    <a
-                      className={styles.issueTitle}
-                      href={issue.html_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {issue.title}
-                    </a>
-                    <span className={styles.duplicateOfNote}>{issue.possiblyStaleReason}</span>
-                  </li>
-                ))}
+                {staleIssues.map((issue) => {
+                  const status = staleActions[issue.number] ?? "idle";
+                  return (
+                    <li key={issue.number} className={styles.duplicateItem}>
+                      <span className={styles.issueNumber}>#{issue.number}</span>
+                      <a
+                        className={styles.issueTitle}
+                        href={issue.html_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {issue.title}
+                      </a>
+                      <span className={styles.duplicateOfNote}>{issue.possiblyStaleReason}</span>
+                      {status === "done" ? (
+                        <span className={styles.flagActionDone}>closed ✓</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.flagActionButton}
+                          onClick={() => handleCloseOutdated(issue.number)}
+                          disabled={status === "loading"}
+                        >
+                          {status === "loading" ? "Closing…" : status === "error" ? "Retry" : "Close"}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
         </div>
       )}
-
-      <div className={styles.columns}>
-        {labelGroups.map(([label, groupIssues]) => renderColumn(label, groupIssues))}
-      </div>
 
       <div className={styles.actions}>
         <button type="button" className={styles.cancelButton} onClick={onCancel} disabled={busy}>

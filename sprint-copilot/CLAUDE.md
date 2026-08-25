@@ -93,16 +93,43 @@ read it before touching any track.
     instruction block in `buildClassificationPrompt` before loosening or
     tightening it again, and re-verify against a repo with an
     obviously-already-built feature before considering a change "done".
+    `classifyIssues()` sets `temperature: 0` for exactly this reason
+    (verified live that `gpt-5.4-mini` accepts it) — don't remove it. It
+    helps but does **not** fully fix run-to-run variance on this field
+    (confirmed empirically: two temp-0 runs against the identical prompt
+    flagged 4 and 9 issues respectively) — that's an inherent property of
+    hosted LLM inference over a multi-issue batch, not a bug to chase
+    further; see PLAN.md's calibration-history addendum, point 4.
     Unlike `duplicate_of`, a possibly-stale issue is **not** auto-excluded
     from allocation — it's a flag for the human to review, shown as its own
     dedicated "Possibly outdated" box in `ReviewPanel` (one row per flagged
     issue with the reason inline) — deliberately **not** also an inline
     per-row badge in the columns; each signal (duplicates, possibly-outdated)
-    gets exactly one UI surface, not a scattered/duplicated one. No
-    close/delete button — the user acts on it manually (open on GitHub, or
-    the existing Kanban drag-to-close). Both repo-content fetches are
-    non-fatal: a failure just skips the relevance check for that run
-    (logged), same pattern as the carry-over lookup in 2d.
+    gets exactly one UI surface, not a scattered/duplicated one. Both
+    repo-content fetches are non-fatal: a failure just skips the relevance
+    check for that run (logged), same pattern as the carry-over lookup in
+    2d. Each row in both boxes has a real action button now — see 2f, this
+    supersedes the original "no close/delete button, act on it manually"
+    design.
+
+2f. **The "Duplicates excluded" and "Possibly outdated" boxes write to
+    GitHub immediately on click — a deliberate, narrow exception to
+    Approach B's "nothing is written until Confirm."** "Consolidate" (on a
+    duplicate row) posts a comment (`"Closing as a duplicate of #N."`) then
+    closes the issue as `not_planned`, via a new `POST
+    /api/board/{number}/consolidate` route (`commentOnIssue()` +
+    `setIssueBoardStatus()`, both in `issues.ts`). "Close" (on a
+    possibly-outdated row) just closes as `not_planned` — reuses the
+    existing `PATCH /api/board/{number}` route with `{status: "cancelled"}`,
+    no new endpoint. Both are real, immediate, per-issue writes,
+    independent of the Confirm/Cancel flow below them — Cancelling the
+    whole preview does **not** undo an action already taken in either box.
+    Closing a possibly-stale issue this way also flips its
+    `inSprint` back to `false` in the review list if it was checked, so
+    Confirm can't still try to milestone/label an issue you just closed.
+    No such reconciliation exists for the duplicates box because a
+    duplicate issue was never in the review list to begin with
+    (`consolidateDuplicates()` already excludes it before allocation).
 
 3. **GitHub API gotchas** (verified against docs, not memory):
    - Sub-issues (not currently used — see 2b): `POST

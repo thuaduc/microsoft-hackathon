@@ -617,6 +617,22 @@ describing features that demonstrably already exist in this repo —
    flagging a keyboard-shortcut issue because the button it'd attach to
    exists) — an accepted limitation of file-tree-only signal, not a bug to
    chase further without an explicit ask.
+4. **Run-to-run variance, not fully solvable by prompting alone.** With the
+   *same* final prompt against the *same* backlog, two consecutive runs
+   flagged 13/22 and then 17/19 — a real swing, not a one-off. Added
+   `temperature: 0` to the `classifyIssues()` API call (`classify.ts`,
+   verified live that `gpt-5.4-mini` accepts it) since a repeatable
+   classification pipeline is generally better than a random one — but
+   confirmed empirically this does **not** fully eliminate the swing (two
+   temperature-0 runs still gave 4 and 9 flags respectively). This is a
+   known property of hosted LLM APIs — greedy decoding isn't guaranteed
+   bit-identical across calls, especially over a ~20-issue batched prompt
+   where small per-issue wording differences compound. The reassuring part:
+   the two deliberately-seeded target issues (#67 Kanban board, #68 chat
+   assistant) got flagged in every run tested, with consistently good
+   reasoning — it's specifically the marginal/borderline cases from point 3
+   above that flicker. Don't chase full determinism here without an
+   explicit ask; it's an inherent property of the approach, not a bug.
 
 **Tested live** against the target repo (which, in this demo's unusual
 nested-monorepo layout, is this very sprint-copilot codebase) at each of the

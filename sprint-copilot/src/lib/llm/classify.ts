@@ -51,6 +51,12 @@ export async function classifyIssues(
   try {
     response = await client.responses.create({
       model: MODEL,
+      // Classification (esp. possibly_stale_reason, which was flagging a
+      // wildly different fraction of issues run-to-run at the default
+      // temperature — verified against the live API that gpt-5.4-mini
+      // accepts this param) needs to be as repeatable as a "same input,
+      // same output" pipeline reasonably can be.
+      temperature: 0,
       input: [
         { role: "system", content: system },
         { role: "user", content: user },
