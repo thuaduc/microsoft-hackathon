@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import styles from "./Nav.module.css";
 
 const LINKS = [
-  { href: "/", label: "Kanban" },
-  { href: "/sprint-planning", label: "Sprint Planning" },
+  { href: "/", label: "Board" },
+  { href: "/sprint-planning", label: "Plan" },
   { href: "/chat", label: "Chat" },
 ];
 

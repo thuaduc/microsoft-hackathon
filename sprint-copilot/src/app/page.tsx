@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <h1 className={styles.headline}>Kanban board</h1>
+        <h1 className={styles.headline}>Board</h1>
       </header>
       <KanbanBoard />
     </main>
