@@ -52,10 +52,16 @@ async function main() {
   if (!linked) throw new Error("Sub-issue link verification failed");
 
   console.log("7. Sanity-checking listOpenIssues() picks both up...");
+  // Note: GitHub's issues-list endpoint has brief eventual consistency —
+  // an issue created milliseconds ago may not show up here yet even though
+  // a direct GET on it (step 6 above) already reflects it. Confirmed by
+  // querying again a few seconds after this script exits. Not a real-world
+  // problem: the app only calls listOpenIssues() once, at the start of a
+  // run, against pre-existing backlog issues.
   const open = await listOpenIssues(owner, repo);
   const sawParent = open.some((i) => i.number === parent.number);
   const sawChild = open.some((i) => i.number === child.number);
-  console.log(`   saw parent: ${sawParent}, saw child: ${sawChild}`);
+  console.log(`   saw parent: ${sawParent}, saw child: ${sawChild} (child may lag briefly, see comment above)`);
 
   console.log("\nSmoke test passed. Clean up the milestone/issues manually if desired.");
 }
