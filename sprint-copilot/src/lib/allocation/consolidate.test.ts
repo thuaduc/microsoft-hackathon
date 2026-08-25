@@ -40,11 +40,8 @@ test("simple duplicate: the duplicate is excluded, canonical kept", () => {
   const result = consolidateDuplicates(classified);
   assert.deepEqual(result.consolidated, [
     {
-      issueNumber: 2,
-      issueTitle: "Issue 2",
-      issueUrl: "https://github.com/example/demo-repo/issues/2",
-      duplicateOfIssueNumber: 1,
-      duplicateOfTitle: "Issue 1",
+      issue: issue(2, 1),
+      duplicateOfIssue: issue(1),
     },
   ]);
   assert.deepEqual(
@@ -58,11 +55,8 @@ test("mutual duplicate claim: lower issue number always wins as canonical", () =
   const result = consolidateDuplicates(classified);
   assert.deepEqual(result.consolidated, [
     {
-      issueNumber: 9,
-      issueTitle: "Issue 9",
-      issueUrl: "https://github.com/example/demo-repo/issues/9",
-      duplicateOfIssueNumber: 5,
-      duplicateOfTitle: "Issue 5",
+      issue: issue(9, 5),
+      duplicateOfIssue: issue(5, 9),
     },
   ]);
   assert.deepEqual(

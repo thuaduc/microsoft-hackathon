@@ -890,6 +890,59 @@ should be structurally impossible after this fix. Don't reintroduce a
     afterward and confirm that issue is **not** listed as a carry-over —
     only issues still genuinely open under the previous sprint should be.
 
+### Addendum — ticket clicks open in place, not by navigating to the board
+
+User report: "the preview shouldn't disappear" + "click on the ticket should
+pop up right there for plan, same component like in board." Both traced to
+the same root cause.
+
+**Root cause**: every ticket-title click target in `ReviewPanel.tsx` (main
+columns, "Possibly outdated" box, "Duplicates excluded" box) was a
+`next/link` `<Link href="/?issue=${number}">`. Clicking it navigated to the
+Kanban board (`/`), which unmounted the entire sprint-planning page —
+including the in-memory preview/review state — explaining "the preview
+disappears." The board's own `linkedIssue` deep-link mechanism then opened
+`TicketDetailModal` there, not in place on the Plan screen.
+
+**Fix**: replaced every `<Link>` in `ReviewPanel.tsx` with a `<button>`
+calling `setDetailIssue(...)`, rendering `TicketDetailModal` (the same
+component the Kanban board uses) as an in-place overlay — no navigation, no
+lost state. This required two supporting changes:
+1. `ReviewIssue` now `extends GitHubIssue` (full issue data: body,
+   assignees, milestone, state, timestamps) plus a computed
+   `status: BoardStatus` via `computeBoardStatus()`, so a review row can be
+   handed straight to `TicketDetailModal` without a second fetch.
+   `toReviewIssues()` simplified accordingly (object spread instead of
+   picking individual fields).
+2. `ConsolidatedEntry` (`src/types.ts`) changed shape from flat display
+   strings (`issueNumber`, `issueTitle`, `issueUrl`,
+   `duplicateOfIssueNumber`, `duplicateOfTitle`) to
+   `{ issue: GitHubIssue, duplicateOfIssue: GitHubIssue }` — the full issue
+   objects, so the duplicates box's two links (the excluded issue and the
+   canonical one it duplicates) can also open `TicketDetailModal` in place,
+   with a `status` computed on the fly via `computeBoardStatus()`. This
+   propagated through `consolidateDuplicates()` (`consolidate.ts`,
+   `consolidate.test.ts`), `preview/route.ts`'s log line
+   (`entry.issue.number` / `entry.duplicateOfIssue.number`), and
+   `ReviewPanel.tsx`'s `handleConsolidate` (now reads `entry.issue.number` /
+   `entry.duplicateOfIssue.number` instead of the old flat fields).
+3. `detailIssue` state widened from `ReviewIssue | null` to
+   `BoardIssue | null`, since the duplicates box constructs its modal input
+   from a plain `GitHubIssue` (via `ConsolidatedEntry`) rather than a
+   `ReviewIssue`.
+
+**CSS**: `.issueTitle` (`ReviewPanel.module.css`) reset to work as a
+`<button>` (border/background/font/padding/text-align), reused unchanged by
+every click target. New `.duplicateOfLink` mirrors the existing
+`.duplicateOfNote a` styling for the "duplicate of #N" button.
+
+Verified live: clicking any ticket (main columns, "Possibly outdated" box,
+both links in "Duplicates excluded") opens `TicketDetailModal` in place with
+correct data, URL stays on `/sprint-planning`, and the preview/review state
+underneath is untouched. `npx tsc --noEmit` clean, all 33 tests pass
+(including the two `consolidate.test.ts` assertions updated to the new
+nested `ConsolidatedEntry` shape).
+
 ## Critical files
 
 - `sprint-copilot/src/types.ts` — shared contracts, everyone codes against this

@@ -1,15 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { computeTotals } from "@/lib/allocation/allocate";
+import { computeBoardStatus } from "@/lib/board/status";
 import { contrastTextColor, filterStatusLabels } from "@/lib/labels";
+import TicketDetailModal from "./TicketDetailModal";
 import type {
   AllocatedIssue,
+  BoardIssue,
+  BoardStatus,
   Bucket,
   ClassifiedIssue,
   ConfirmSelection,
   ConsolidatedEntry,
+  GitHubIssue,
   PreviewResult,
 } from "@/types";
 import styles from "./ReviewPanel.module.css";
@@ -24,14 +28,14 @@ function message(err: unknown): string {
   return err instanceof Error ? err.message : "Request failed.";
 }
 
-interface ReviewIssue {
-  number: number;
-  title: string;
-  html_url: string;
+// Extends the full GitHubIssue (not just a display-friendly subset) so a
+// row's issue can be handed straight to TicketDetailModal — same component
+// the Kanban board uses — without a second fetch. status is computed once
+// here via the same shared computeBoardStatus() the board itself uses.
+interface ReviewIssue extends GitHubIssue {
+  status: BoardStatus;
   points: number;
   bucket: Bucket;
-  labels: string[];
-  labelColors?: Record<string, string>;
   inSprint: boolean;
   carriedOverFromMilestone?: string;
   possiblyStaleReason: string | null;
@@ -40,26 +44,20 @@ interface ReviewIssue {
 
 function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
   const selected: ReviewIssue[] = preview.selected.map((issue: AllocatedIssue) => ({
-    number: issue.number,
-    title: issue.title,
-    html_url: issue.html_url,
+    ...issue,
+    status: computeBoardStatus(issue),
     points: issue.classification.points,
     bucket: issue.bucket,
-    labels: issue.labels,
-    labelColors: issue.labelColors,
     inSprint: true,
     carriedOverFromMilestone: issue.carriedOverFromMilestone,
     possiblyStaleReason: issue.classification.possibly_stale_reason,
     matchesSprintFocus: issue.classification.matches_sprint_focus,
   }));
   const unselected: ReviewIssue[] = preview.unselected.map((issue: ClassifiedIssue) => ({
-    number: issue.number,
-    title: issue.title,
-    html_url: issue.html_url,
+    ...issue,
+    status: computeBoardStatus(issue),
     points: issue.classification.points,
     bucket: issue.classification.type,
-    labels: issue.labels,
-    labelColors: issue.labelColors,
     inSprint: false,
     carriedOverFromMilestone: issue.carriedOverFromMilestone,
     possiblyStaleReason: issue.classification.possibly_stale_reason,
@@ -113,6 +111,10 @@ export default function ReviewPanel({
   const [duplicateActions, setDuplicateActions] = useState<Record<number, ActionStatus>>({});
   const [staleActions, setStaleActions] = useState<Record<number, ActionStatus>>({});
   const [expandedStale, setExpandedStale] = useState<Set<number>>(new Set());
+  // Ticket details open in-place, right here — not by navigating to the
+  // board (that used to unmount this whole page, losing the in-progress
+  // review). Same TicketDetailModal component the board itself uses.
+  const [detailIssue, setDetailIssue] = useState<BoardIssue | null>(null);
 
   const totals = useMemo(() => {
     const selected = issues.filter((i) => i.inSprint);
@@ -153,18 +155,19 @@ export default function ReviewPanel({
   }
 
   async function handleConsolidate(entry: ConsolidatedEntry) {
-    setDuplicateActions((prev) => ({ ...prev, [entry.issueNumber]: "loading" }));
+    const issueNumber = entry.issue.number;
+    setDuplicateActions((prev) => ({ ...prev, [issueNumber]: "loading" }));
     try {
-      const res = await fetch(`/api/board/${entry.issueNumber}/consolidate`, {
+      const res = await fetch(`/api/board/${issueNumber}/consolidate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ duplicateOfIssueNumber: entry.duplicateOfIssueNumber }),
+        body: JSON.stringify({ duplicateOfIssueNumber: entry.duplicateOfIssue.number }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Request failed.");
-      setDuplicateActions((prev) => ({ ...prev, [entry.issueNumber]: "done" }));
+      setDuplicateActions((prev) => ({ ...prev, [issueNumber]: "done" }));
     } catch (err) {
-      setDuplicateActions((prev) => ({ ...prev, [entry.issueNumber]: "error" }));
-      console.error(`Failed to consolidate #${entry.issueNumber}:`, message(err));
+      setDuplicateActions((prev) => ({ ...prev, [issueNumber]: "error" }));
+      console.error(`Failed to consolidate #${issueNumber}:`, message(err));
     }
   }
 
@@ -233,13 +236,17 @@ export default function ReviewPanel({
                 <div className={styles.itemBody}>
                   <div className={styles.itemTitleRow}>
                     <span className={styles.issueNumber}>#{issue.number}</span>
-                    <Link
+                    <button
+                      type="button"
                       className={styles.issueTitle}
-                      href={`/?issue=${issue.number}`}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setDetailIssue(issue);
+                      }}
                     >
                       {issue.title}
-                    </Link>
+                    </button>
                   </div>
                   <div className={styles.itemMetaRow}>
                     {issue.carriedOverFromMilestone && (
@@ -323,18 +330,33 @@ export default function ReviewPanel({
               </div>
               <ul className={styles.duplicatesList}>
                 {preview.consolidated.map((entry) => {
-                  const status = duplicateActions[entry.issueNumber] ?? "idle";
+                  const status = duplicateActions[entry.issue.number] ?? "idle";
                   return (
-                    <li key={entry.issueNumber} className={styles.duplicateItem}>
-                      <span className={styles.issueNumber}>#{entry.issueNumber}</span>
-                      <Link className={styles.issueTitle} href={`/?issue=${entry.issueNumber}`}>
-                        {entry.issueTitle}
-                      </Link>
+                    <li key={entry.issue.number} className={styles.duplicateItem}>
+                      <span className={styles.issueNumber}>#{entry.issue.number}</span>
+                      <button
+                        type="button"
+                        className={styles.issueTitle}
+                        onClick={() =>
+                          setDetailIssue({ ...entry.issue, status: computeBoardStatus(entry.issue) })
+                        }
+                      >
+                        {entry.issue.title}
+                      </button>
                       <span className={styles.duplicateOfNote}>
                         duplicate of{" "}
-                        <Link href={`/?issue=${entry.duplicateOfIssueNumber}`}>
-                          #{entry.duplicateOfIssueNumber} {entry.duplicateOfTitle}
-                        </Link>
+                        <button
+                          type="button"
+                          className={styles.duplicateOfLink}
+                          onClick={() =>
+                            setDetailIssue({
+                              ...entry.duplicateOfIssue,
+                              status: computeBoardStatus(entry.duplicateOfIssue),
+                            })
+                          }
+                        >
+                          #{entry.duplicateOfIssue.number} {entry.duplicateOfIssue.title}
+                        </button>
                       </span>
                       {status === "done" ? (
                         <span className={styles.flagActionDone}>closed ✓</span>
@@ -364,25 +386,32 @@ export default function ReviewPanel({
               <ul className={styles.duplicatesList}>
                 {staleIssues.map((issue) => {
                   const status = staleActions[issue.number] ?? "idle";
-                  const expanded = expandedStale.has(issue.number);
+                  const showReason = expandedStale.has(issue.number);
                   return (
                     <li key={issue.number} className={styles.duplicateItem}>
+                      <span className={styles.issueNumber}>#{issue.number}</span>
                       <button
                         type="button"
-                        className={styles.staleReasonToggle}
-                        onClick={() => toggleStaleReason(issue.number)}
-                        aria-expanded={expanded}
+                        className={styles.issueTitle}
+                        onClick={() => setDetailIssue(issue)}
                       >
-                        <span className={styles.issueNumber}>#{issue.number}</span>
-                        <span className={styles.issueTitle}>{issue.title}</span>
+                        {issue.title}
                       </button>
-                      <Link
-                        className={styles.staleViewLink}
-                        href={`/?issue=${issue.number}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        view →
-                      </Link>
+                      <span className={styles.staleViewWrap}>
+                        <button
+                          type="button"
+                          className={styles.staleViewButton}
+                          onClick={() => toggleStaleReason(issue.number)}
+                          aria-expanded={showReason}
+                        >
+                          view →
+                        </button>
+                        {showReason && (
+                          <div className={styles.staleReasonPopover} role="tooltip">
+                            {issue.possiblyStaleReason}
+                          </div>
+                        )}
+                      </span>
                       {status === "done" ? (
                         <span className={styles.flagActionDone}>closed ✓</span>
                       ) : (
@@ -394,9 +423,6 @@ export default function ReviewPanel({
                         >
                           {status === "loading" ? "Closing…" : status === "error" ? "Retry" : "Close"}
                         </button>
-                      )}
-                      {expanded && (
-                        <span className={styles.staleReason}>{issue.possiblyStaleReason}</span>
                       )}
                     </li>
                   );
@@ -421,6 +447,8 @@ export default function ReviewPanel({
           {busy ? "Writing…" : "Confirm & write to GitHub"}
         </button>
       </div>
+
+      {detailIssue && <TicketDetailModal issue={detailIssue} onClose={() => setDetailIssue(null)} />}
     </div>
   );
 }

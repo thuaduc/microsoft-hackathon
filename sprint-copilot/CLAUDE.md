@@ -45,8 +45,10 @@ read it before touching any track.
     (`src/lib/allocation/consolidate.ts`) resolves `duplicate_of` chains to
     their root and excludes every non-root duplicate before `allocate()` ever
     runs, so duplicates never compete for sprint capacity. `ConsolidatedEntry`
-    (`issueNumber`, `issueTitle`, `issueUrl`, `duplicateOfIssueNumber`,
-    `duplicateOfTitle`) carries enough of each issue's own data for a real
+    (`{ issue: GitHubIssue, duplicateOfIssue: GitHubIssue }` — the *full*
+    issue objects, not just display strings, so both can be opened in
+    `TicketDetailModal` without a second fetch — see the in-place-detail-modal
+    addendum below) carries enough of each issue's own data for a real
     per-item UI — `ReviewPanel` renders a dedicated "Duplicates excluded" box
     (one row per excluded issue, linked to both it and the issue it
     duplicates), not just a count. Always report these in the UI, don't
@@ -167,6 +169,24 @@ read it before touching any track.
     override carry-over without an explicit ask. Shown in `ReviewPanel` as
     a "focus" badge per matching row (indigo, distinct from the amber
     "possibly stale" one).
+
+2h. **Clicking a ticket anywhere in the review screen opens `TicketDetailModal`
+    in place — it must never navigate away.** Every ticket-title click target
+    in `ReviewPanel.tsx` (main columns, the "Possibly outdated" box, and both
+    links in the "Duplicates excluded" box) is a `<button>` that calls
+    `setDetailIssue(...)`, rendering the same read-only `TicketDetailModal`
+    the Kanban board uses, as an overlay on the current page. **Do not
+    reintroduce `next/link`'s `<Link href="/?issue=N">` here** — that was the
+    original implementation and it navigated to the Kanban board (`/`),
+    unmounting the whole sprint-planning page and losing the in-progress
+    preview/review state (found live: "the preview shouldn't disappear").
+    `ReviewIssue` (`ReviewPanel.tsx`) now `extends GitHubIssue` plus a
+    computed `status: BoardStatus` (via `computeBoardStatus()`), so a review
+    row's issue can be handed straight to `TicketDetailModal` without a
+    second fetch; `detailIssue` state is typed `BoardIssue | null` (not
+    `ReviewIssue | null`) specifically so the duplicates box can also open
+    it by spreading a plain `ConsolidatedEntry.issue`/`duplicateOfIssue`
+    (a `GitHubIssue`, not a `ReviewIssue`) plus a freshly computed `status`.
 
 3. **GitHub API gotchas** (verified against docs, not memory):
    - Sub-issues (not currently used — see 2b): `POST

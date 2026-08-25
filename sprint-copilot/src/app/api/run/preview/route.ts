@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     for (const entry of consolidated) {
       emit({
         type: "log",
-        message: `Excluded #${entry.issueNumber} as a duplicate of #${entry.duplicateOfIssueNumber}`,
+        message: `Excluded #${entry.issue.number} as a duplicate of #${entry.duplicateOfIssue.number}`,
       });
     }
 

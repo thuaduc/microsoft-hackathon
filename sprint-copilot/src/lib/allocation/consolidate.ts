@@ -48,11 +48,8 @@ export function consolidateDuplicates(classified: ClassifiedIssue[]): Consolidat
 
   const consolidated: ConsolidatedEntry[] = [...excluded.entries()].map(
     ([issueNumber, duplicateOfIssueNumber]) => ({
-      issueNumber,
-      issueTitle: byNumber.get(issueNumber)!.title,
-      issueUrl: byNumber.get(issueNumber)!.html_url,
-      duplicateOfIssueNumber,
-      duplicateOfTitle: byNumber.get(duplicateOfIssueNumber)!.title,
+      issue: byNumber.get(issueNumber)!,
+      duplicateOfIssue: byNumber.get(duplicateOfIssueNumber)!,
     })
   );
 

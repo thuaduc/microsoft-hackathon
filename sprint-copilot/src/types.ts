@@ -56,11 +56,8 @@ export interface IssueClassification {
 // Carries enough of each issue's own data (not just numbers) so the review
 // screen can show a real per-item row instead of just a count.
 export interface ConsolidatedEntry {
-  issueNumber: number;
-  issueTitle: string;
-  issueUrl: string;
-  duplicateOfIssueNumber: number;
-  duplicateOfTitle: string;
+  issue: GitHubIssue; // the excluded duplicate, full data — lets the UI open it in the same detail modal used everywhere else, no second fetch
+  duplicateOfIssue: GitHubIssue; // the canonical issue it duplicates
 }
 
 export interface ClassifiedIssue extends GitHubIssue {
