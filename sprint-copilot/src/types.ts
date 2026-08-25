@@ -46,11 +46,16 @@ export interface IssueClassification {
 }
 
 // A duplicate issue excluded from allocation, and the canonical issue it
-// was consolidated into. Both numbers are always present in the input
+// was consolidated into. Both issues are always present in the input
 // batch — this is not a partial/best-effort record, it's a full exclusion.
+// Carries enough of each issue's own data (not just numbers) so the review
+// screen can show a real per-item row instead of just a count.
 export interface ConsolidatedEntry {
   issueNumber: number;
+  issueTitle: string;
+  issueUrl: string;
   duplicateOfIssueNumber: number;
+  duplicateOfTitle: string;
 }
 
 export interface ClassifiedIssue extends GitHubIssue {

@@ -1,4 +1,9 @@
-# Sprint Co-Pilot — Implementation Plan
+# Compass — Implementation Plan
+
+**Renamed from "Sprint Co-Pilot" to "Compass" post-build** — cosmetic only, no
+functional change; some section text below still says "Sprint Co-Pilot" as
+history (see CLAUDE.md's top line and the naming convention it follows for
+other superseded decisions in this doc).
 
 ## Context
 
@@ -470,8 +475,9 @@ self-references, out-of-batch references, and cycles — a cycle breaks
 deterministically at the lowest issue number) and excludes every non-root
 duplicate before `allocate()` runs. Excluded pairs are surfaced as
 `ConsolidatedEntry[]` on `PreviewResult`/`SprintRunResult` and shown in the
-UI as a "N duplicate issues excluded" note. New test file:
-`src/lib/allocation/consolidate.test.ts`.
+UI as a dedicated per-item "Duplicates excluded" box (see the later
+repo-aware-relevance-flagging addendum for how this evolved past a plain
+count). New test file: `src/lib/allocation/consolidate.test.ts`.
 
 **Milestones get a due date now**: `createMilestone()`
 (`src/lib/github/milestones.ts`) takes an optional `dueOn`; confirm computes
@@ -567,19 +573,61 @@ pattern exactly, for consistency.
 
 **Not auto-excluded from allocation** — this is the key difference from
 `duplicate_of`/`consolidateDuplicates()`. A possibly-stale issue can still
-be selected by `allocate()`; it's purely a review-time signal. `ReviewPanel`
-shows a "possibly stale" badge (reason in the `title` tooltip, same visual
-pattern as the existing "carried over" badge) — no close/delete button, no
-new write path. The user acts on it manually.
+be selected by `allocate()`; it's purely a review-time signal.
+
+**UI, one dedicated component per signal**: `ReviewPanel` renders duplicates
+and possibly-stale issues as two separate boxes side by side — "Duplicates
+excluded" and "Possibly outdated" — each with one row per flagged issue,
+title linked to GitHub, and the reason shown inline (not hidden behind a
+hover tooltip). Earlier revisions had an inline "possibly stale" badge on
+the issue's row in its label column, in addition to a terser "N duplicate
+issues excluded" count string — both were replaced by these two boxes on
+explicit request: each signal should live in exactly one place, not be
+duplicated across an inline badge and a summary. The inline per-row
+`carriedOverFromMilestone` badge (2d) is unrelated and unaffected — it's
+about which issues are pre-selected, not a data-quality flag, and stayed.
+No close/delete button on either box — the user acts on it manually.
+
+**Prompt calibration history — read before touching the possibly_stale_reason
+instructions again.** This went through three passes against real seeded
+test issues (two deliberately near-duplicate-worded issues, and two
+describing features that demonstrably already exist in this repo —
+`KanbanBoard.tsx`, `ChatThread.tsx`):
+1. First wording ("only when the repository context *clearly* shows this...
+   don't guess") was too conservative: 0/19 real issues flagged, including
+   the two obviously-already-built ones. Useless — the file-tree-only
+   signal is inherently probabilistic, and "don't guess" pushed the model
+   to require near-certainty it could never have from paths alone.
+2. Loosened to explicitly encourage inferring from file/component naming
+   (with worked examples). Overcorrected badly: 22/22 flagged, plus a
+   schema-technically-valid-but-wrong bug where a few items returned the
+   *string* `"null"` instead of the JSON `null` — the vaguer prompt seems
+   to have destabilized the model's sense of when to stop, not just what
+   counts as evidence.
+3. Final wording keeps the naming-based reasoning encouragement but adds an
+   explicit high bar ("a close, *specific* match to the issue's core ask,
+   not just a file in the same general area") and negative examples (a
+   button component existing isn't evidence its keyboard shortcut exists),
+   plus an explicit "use JSON null, never the string null" line. Result:
+   13/22, correctly including both target already-built issues with
+   specific, well-reasoned matches, and correctly excluding the two
+   deliberately-different-wording near-duplicate issues (that pair went
+   through `duplicate_of` instead, as intended). Some remaining
+   false-positive tendency toward "same subsystem, not same feature" (e.g.
+   flagging a keyboard-shortcut issue because the button it'd attach to
+   exists) — an accepted limitation of file-tree-only signal, not a bug to
+   chase further without an explicit ask.
 
 **Tested live** against the target repo (which, in this demo's unusual
-nested-monorepo layout, is this very sprint-copilot codebase): the pipeline
-ran end-to-end with no errors, repo tree (82 files) and README (8KB, though
-note — see caveat below) were fetched successfully, and classification
-correctly conformed to the extended schema. Zero issues were flagged
-possibly-stale in that run, which is an expected outcome of the file tree's
-weak signal for this repo's actual backlog titles, not a bug — the LLM was
-explicitly told not to guess without clear support.
+nested-monorepo layout, is this very sprint-copilot codebase) at each of the
+three prompt passes above — pipeline ran end-to-end with no errors at every
+pass; only the classification *content* changed. To re-demo either use case
+(e.g. after further prompt changes), seed a couple of differently-worded
+near-duplicate issues and a couple describing an already-built feature by
+an obviously-matching component/file name — real GitHub issues via
+`githubRequest(POST /repos/{o}/{r}/issues, ...)`, same as the throwaway
+seeding scripts used here (not kept in the repo — see the pattern in git
+history if needed, e.g. `scripts/seed-labeled-issues.ts`'s style).
 
 **Known caveat, not fixed (would break the general case)**: `getReadme()`
 always fetches the *root* README. In this demo repo specifically, the root
@@ -720,9 +768,14 @@ catching errors per stage into `SprintRunResult.error`.
 17. Preview a sprint against a repo with an issue that clearly describes an
     already-shipped feature (a file/component whose name obviously matches):
     the activity log shows "Reading repository for relevance context…", and
-    that issue gets a "possibly stale" badge in the review screen with a
-    sensible reason on hover. It's still toggleable in/out like any other
-    issue — not auto-excluded.
+    that issue shows up as a row in the "Possibly outdated" box with a
+    sensible reason naming the matching file/path. It's still toggleable
+    in/out in its label column like any other issue — not auto-excluded, no
+    separate badge on the row itself (the box is the only place this shows).
+18. Preview against a repo with two issues describing the same request in
+    different words: the "Duplicates excluded" box shows the excluded issue
+    linked to the canonical one it duplicates, and the excluded issue does
+    not appear in any label column (it never competed for capacity).
 
 ## Critical files
 

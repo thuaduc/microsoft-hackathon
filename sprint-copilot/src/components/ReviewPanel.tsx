@@ -3,11 +3,25 @@
 import { useMemo, useState } from "react";
 import { computeTotals } from "@/lib/allocation/allocate";
 import { contrastTextColor, filterStatusLabels } from "@/lib/labels";
-import type { AllocatedIssue, Bucket, ClassifiedIssue, ConfirmSelection, PreviewResult } from "@/types";
+import type {
+  AllocatedIssue,
+  Bucket,
+  ClassifiedIssue,
+  ConfirmSelection,
+  ConsolidatedEntry,
+  PreviewResult,
+} from "@/types";
 import styles from "./ReviewPanel.module.css";
 
 function formatPts(points: number): string {
   return Number.isInteger(points) ? String(points) : points.toFixed(1);
+}
+
+// Same repo, so the canonical issue's URL is the excluded issue's URL with
+// the number swapped — avoids threading a second URL through the whole
+// consolidate/preview pipeline just for this link.
+function duplicateOfUrl(entry: ConsolidatedEntry): string {
+  return entry.issueUrl.replace(/\/issues\/\d+$/, `/issues/${entry.duplicateOfIssueNumber}`);
 }
 
 interface ReviewIssue {
@@ -108,6 +122,7 @@ export default function ReviewPanel({
   const bugPct = barBase > 0 ? (totals.bugPointsUsed / barBase) * 100 : 0;
 
   const labelGroups = useMemo(() => groupByLabel(issues), [issues]);
+  const staleIssues = useMemo(() => issues.filter((i) => i.possiblyStaleReason), [issues]);
 
   function toggle(number: number) {
     setIssues((prev) =>
@@ -156,34 +171,38 @@ export default function ReviewPanel({
                   onChange={() => toggle(issue.number)}
                   disabled={busy}
                 />
-                <span className={styles.issueNumber}>#{issue.number}</span>
-                <a
-                  className={styles.issueTitle}
-                  href={issue.html_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {issue.title}
-                </a>
-                {issue.carriedOverFromMilestone && (
-                  <span className={styles.carryOverBadge} title={`Still open from "${issue.carriedOverFromMilestone}"`}>
-                    carried over
-                  </span>
-                )}
-                {issue.possiblyStaleReason && (
-                  <span className={styles.staleBadge} title={issue.possiblyStaleReason}>
-                    possibly stale
-                  </span>
-                )}
-                <span
-                  className={`${styles.bucketDot} ${
-                    issue.bucket === "feature" ? styles.bucketFeature : styles.bucketBug
-                  }`}
-                  title={issue.bucket}
-                  aria-hidden="true"
-                />
-                <span className={styles.points}>{issue.points} pts</span>
+                <div className={styles.itemBody}>
+                  <div className={styles.itemTitleRow}>
+                    <span className={styles.issueNumber}>#{issue.number}</span>
+                    <a
+                      className={styles.issueTitle}
+                      href={issue.html_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {issue.title}
+                    </a>
+                  </div>
+                  <div className={styles.itemMetaRow}>
+                    {issue.carriedOverFromMilestone && (
+                      <span
+                        className={styles.carryOverBadge}
+                        title={`Still open from "${issue.carriedOverFromMilestone}"`}
+                      >
+                        carried over
+                      </span>
+                    )}
+                    <span
+                      className={`${styles.bucketDot} ${
+                        issue.bucket === "feature" ? styles.bucketFeature : styles.bucketBug
+                      }`}
+                      title={issue.bucket}
+                      aria-hidden="true"
+                    />
+                    <span className={styles.points}>{issue.points} pts</span>
+                  </div>
+                </div>
               </label>
             </li>
           ))}
@@ -223,14 +242,65 @@ export default function ReviewPanel({
           <span className={styles.barFeature} style={{ width: `${featurePct}%` }} />
           <span className={styles.barBug} style={{ width: `${bugPct}%` }} />
         </div>
-        <span className={styles.hint}>Toggle issues to adapt the sprint before writing to GitHub.</span>
       </div>
 
-      {preview.consolidated.length > 0 && (
-        <p className={styles.consolidatedNote}>
-          {preview.consolidated.length} duplicate issue{preview.consolidated.length === 1 ? "" : "s"} excluded
-          from consideration.
-        </p>
+      {(preview.consolidated.length > 0 || staleIssues.length > 0) && (
+        <div className={styles.flagsRow}>
+          {preview.consolidated.length > 0 && (
+            <div className={styles.duplicates}>
+              <div className={styles.duplicatesHeader}>
+                <span className={styles.duplicatesTitle}>Duplicates excluded</span>
+                <span className={styles.columnMeta}>{preview.consolidated.length}</span>
+              </div>
+              <ul className={styles.duplicatesList}>
+                {preview.consolidated.map((entry) => (
+                  <li key={entry.issueNumber} className={styles.duplicateItem}>
+                    <span className={styles.issueNumber}>#{entry.issueNumber}</span>
+                    <a
+                      className={styles.issueTitle}
+                      href={entry.issueUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {entry.issueTitle}
+                    </a>
+                    <span className={styles.duplicateOfNote}>
+                      duplicate of{" "}
+                      <a href={duplicateOfUrl(entry)} target="_blank" rel="noopener noreferrer">
+                        #{entry.duplicateOfIssueNumber} {entry.duplicateOfTitle}
+                      </a>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {staleIssues.length > 0 && (
+            <div className={styles.duplicates}>
+              <div className={styles.duplicatesHeader}>
+                <span className={styles.duplicatesTitle}>Possibly outdated</span>
+                <span className={styles.columnMeta}>{staleIssues.length}</span>
+              </div>
+              <ul className={styles.duplicatesList}>
+                {staleIssues.map((issue) => (
+                  <li key={issue.number} className={styles.duplicateItem}>
+                    <span className={styles.issueNumber}>#{issue.number}</span>
+                    <a
+                      className={styles.issueTitle}
+                      href={issue.html_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {issue.title}
+                    </a>
+                    <span className={styles.duplicateOfNote}>{issue.possiblyStaleReason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
 
       <div className={styles.columns}>

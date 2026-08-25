@@ -1,4 +1,4 @@
-# Sprint Co-Pilot — brief for any Claude session working on this
+# Compass (formerly "Sprint Co-Pilot") — brief for any Claude session working on this
 
 Full detail, module interfaces, dependency graph, and per-track scope: see
 `PLAN.md` in this directory. This file is just the load-bearing constraints —
@@ -44,10 +44,13 @@ read it before touching any track.
     within the same batch. `consolidateDuplicates()`
     (`src/lib/allocation/consolidate.ts`) resolves `duplicate_of` chains to
     their root and excludes every non-root duplicate before `allocate()` ever
-    runs, so duplicates never compete for sprint capacity. Excluded issues
-    are surfaced as `ConsolidatedEntry[]` on both `PreviewResult` and
-    `SprintRunResult` — always report them in the UI, don't silently drop
-    them.
+    runs, so duplicates never compete for sprint capacity. `ConsolidatedEntry`
+    (`issueNumber`, `issueTitle`, `issueUrl`, `duplicateOfIssueNumber`,
+    `duplicateOfTitle`) carries enough of each issue's own data for a real
+    per-item UI — `ReviewPanel` renders a dedicated "Duplicates excluded" box
+    (one row per excluded issue, linked to both it and the issue it
+    duplicates), not just a count. Always report these in the UI, don't
+    silently drop them.
 
 2d. **Unfinished issues from the previous sprint are force-carried into the
     new preview.** Before classification, `/api/run/preview` calls
@@ -76,15 +79,26 @@ read it before touching any track.
     `src/lib/github/repo.ts` — and folds both into the classification
     system prompt as `RepoContext` (`src/lib/llm/prompt.ts`). The LLM sets
     `IssueClassification.possibly_stale_reason` (a string, or `null`) when
-    the file tree/README clearly show an issue is already implemented or no
-    longer applies — explicitly instructed not to guess from weak signal.
-    **Deliberately cheap**: file tree + README only, no file contents
-    fetched per-issue — a heavier "fetch content of files that look
+    the file tree/README show an issue is probably already implemented or no
+    longer applies. **Deliberately cheap**: file tree + README only, no file
+    contents fetched per-issue — a heavier "fetch content of files that look
     related to each ticket" version was considered and rejected as
-    unnecessary complexity for this pass. Unlike `duplicate_of`, a
-    possibly-stale issue is **not** auto-excluded from allocation — it's a
-    flag for the human to review (a "possibly stale" badge in
-    `ReviewPanel`, reason in the tooltip), not an automatic action. No
+    unnecessary complexity for this pass. The prompt wording here has real
+    calibration tension — encourage inference from file/component naming
+    (e.g. an issue titled "add a kanban board" when `KanbanBoard.tsx`
+    already exists) too strongly and it over-flags everything in the same
+    subsystem (tried once: 22/22 issues got flagged, useless); too weakly
+    and it never fires at all (tried too: 0/19). Current wording sets a
+    "close, specific name match to the issue's core ask" bar — see the
+    instruction block in `buildClassificationPrompt` before loosening or
+    tightening it again, and re-verify against a repo with an
+    obviously-already-built feature before considering a change "done".
+    Unlike `duplicate_of`, a possibly-stale issue is **not** auto-excluded
+    from allocation — it's a flag for the human to review, shown as its own
+    dedicated "Possibly outdated" box in `ReviewPanel` (one row per flagged
+    issue with the reason inline) — deliberately **not** also an inline
+    per-row badge in the columns; each signal (duplicates, possibly-outdated)
+    gets exactly one UI surface, not a scattered/duplicated one. No
     close/delete button — the user acts on it manually (open on GitHub, or
     the existing Kanban drag-to-close). Both repo-content fetches are
     non-fatal: a failure just skips the relevance check for that run
