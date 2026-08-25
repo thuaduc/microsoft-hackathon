@@ -10,7 +10,15 @@ read it before touching any track.
 
 2. **Approach A: one button, fully atomic.** The pipeline is
    scrape → classify → allocate → write, triggered by a single click, with no
-   intermediate review/confirm screen. Do not add one.
+   intermediate review/confirm screen. Do not add one. (The UI also shows a
+   live backlog overview — every open issue, unfiltered — above the button;
+   that's informational only, not a preview of the algorithm's picks, so it
+   doesn't count as a confirm step. See PLAN.md's "Live backlog overview"
+   addendum.)
+
+2a. **No mock data in the shipped app.** `/api/run` and `/api/issues` call the
+    real GitHub/OpenAI modules — `src/fixtures/*.json` are reference data only,
+    not imported by any route.
 
 3. **Three GitHub API gotchas** (verified against docs, not memory):
    - Sub-issues: `POST .../issues/{issue_number}/sub_issues` body

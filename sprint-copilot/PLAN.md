@@ -34,7 +34,9 @@ package.json/CI/env files. The app will live in a new `sprint-copilot/` subdirec
 - Feature/bug ratio: fixed constant, 70% feature points / 30% bug points.
 - Team capacity: hardcoded constants — 3 devs × 6 pts/dev = 18 points.
 - Epic detection: done by the LLM in the same classify call.
-- No review/confirm step — Approach A, fully atomic.
+- No review/confirm step — Approach A, fully atomic. (The live backlog overview,
+  added below, is informational only — it lists all open issues, not the
+  algorithm's picks — so it doesn't reintroduce a confirm-before-write step.)
 - Minimal error handling: catch failures per pipeline stage, show a plain message,
   no retries, no rollback of partial GitHub writes.
 - Minimal testing: one unit-tested pure module (allocation) + a manual E2E checklist.
@@ -83,12 +85,20 @@ sprint-copilot/
         allocate.ts              # pure allocation algorithm
         allocate.test.ts
     app/
-      page.tsx                   # button + loading + result
-      api/run/route.ts           # orchestrator — written at integration, not by a track
+      page.tsx                   # backlog overview + run button + result
+      api/run/route.ts           # orchestrator — real wiring, see addendum below
+      api/issues/route.ts        # GET — lists live open issues for the overview
     components/
       RunButton.tsx
       ResultView.tsx
+      BacklogList.tsx            # live GitHub issues overview
 ```
+
+**Addendum (post-brief change, see "Live backlog overview" section below):** Tracks
+A, B, C landed on `main` ahead of schedule, so Track D wires the real orchestrator
+directly instead of deferring to a separate integration session, and the
+`api/issues/route.ts` overview endpoint was added. `src/fixtures/*.json` stay in
+the repo as reference data only — no shipped route imports them.
 
 ## Foundation step (sequential — one session, ~30-45 min, MUST finish before parallel work starts)
 
@@ -272,11 +282,56 @@ fastest to wire up with zero config):
 //   failure: error.stage + error.message
 ```
 
-Build entirely against `src/fixtures/sample-result.json` via a temporary stub
-`app/api/run/route.ts` that returns the fixture with an artificial delay (to
-exercise the loading state). This stub gets fully overwritten at integration —
-don't over-invest in it. Keep styling minimal (system font stack, a handful of
-CSS rules).
+~~Build entirely against `src/fixtures/sample-result.json` via a temporary stub
+`app/api/run/route.ts`.~~ Superseded — see the addendum immediately below.
+Keep styling minimal (system font stack, a handful of CSS rules).
+
+### Addendum — live backlog overview, real wiring, no mock (post-brief change)
+
+Tracks A (GitHub client), B (LLM classify), and C (allocation) landed on `main`
+ahead of the original schedule. Given that, the user asked for two changes to
+Track D before it's built further:
+
+1. **A live backlog overview**, showing every open issue in the target repo,
+   sits above the run button — not a preview of what the algorithm will pick,
+   just the current state of the backlog. This stays consistent with Approach
+   A: there is still exactly one button, and it still runs the full pipeline
+   atomically with no confirm step of its own.
+2. **No mock/fixture data in the shipped app.** `app/api/run/route.ts` is
+   wired to the real orchestrator now instead of deferring to a later
+   integration session; `src/fixtures/*.json` remain in the repo as reference
+   data only (e.g. useful for manually re-checking the allocation algorithm),
+   but no route imports them.
+
+**New endpoint** — `GET /api/issues`:
+```ts
+// calls listOpenIssues(owner, repo) from src/lib/github/issues.ts
+// success: 200 { issues: GitHubIssue[] }
+// failure: 500 { error: string }   — same minimal-error-handling bar as /api/run
+```
+
+**`app/api/run/route.ts`** — real orchestration, replacing the fixture stub:
+```
+listOpenIssues(owner, repo)
+  -> classifyIssues(issues)
+  -> allocate(classified, { capacityPoints: CAPACITY_POINTS, featureRatio: FEATURE_RATIO, bugRatio: BUG_RATIO })
+  -> createMilestone(owner, repo, title)
+  -> for each selected issue: assignIssueToMilestone, applyLabels(["agent-drafted", "type:<bucket>"]),
+     and createSubIssue for each is_epic issue's subticket_suggestions
+```
+Catch failures per stage (`fetch` / `classify` / `allocate` / `write`) into
+`SprintRunResult.error`, exactly as originally specified in the Integration
+section below — no retries, no rollback of partial writes.
+
+**Page composition** — `page.tsx` now manages two independent async states: a
+`backlogStatus` (`"loading" | "done" | "error"`) for the `GET /api/issues` fetch
+on mount, rendered via `components/BacklogList.tsx` (props: `{ issues:
+GitHubIssue[] }` — number, title, labels, link to `html_url`), and the existing
+`status`/`RunButton`/`ResultView` flow for the run itself, unchanged.
+
+This addendum makes Track D self-sufficient for a full real run: it no longer
+needs a separate "integration" session to wire `app/api/run/route.ts`, since
+Track A/B/C's real modules are already available on `main` to import directly.
 
 ## Dependency graph
 
@@ -297,8 +352,10 @@ Track A Track B  Track C   Track D
 ```
 
 A, B, C, D have zero import dependencies on each other's implementations — only
-on the shared foundation files. `app/api/run/route.ts` is deliberately deferred to
-integration since it's the one place all three backend modules meet.
+on the shared foundation files. `app/api/run/route.ts` was originally deferred
+to integration since it's the one place all three backend modules meet — but
+per the addendum above, A/B/C landed early, so Track D now imports them
+directly and there is no separate integration session.
 
 ## Running it in parallel
 
@@ -356,7 +413,9 @@ catching errors per stage into `SprintRunResult.error`.
 
 1. `.env.local` has valid `GITHUB_PAT` (Issues read/write scope), `GITHUB_OWNER`,
    `GITHUB_REPO`, `OPENAI_API_KEY`.
-2. Load the page: idle state shows one button, no console errors.
+2. Load the page: backlog overview loads and lists every open issue in the
+   target repo (matches the GitHub UI's open-issues count), idle state shows
+   one button, no console errors.
 3. Click it: loading state shows immediately, button disables (no double-submit).
 4. A new Milestone appears on the target repo with a sane title.
 5. Selected issues are assigned to that milestone on GitHub (not just in the UI).
@@ -378,3 +437,5 @@ catching errors per stage into `SprintRunResult.error`.
 - `sprint-copilot/src/lib/llm/classify.ts`
 - `sprint-copilot/src/lib/allocation/allocate.ts`
 - `sprint-copilot/src/app/api/run/route.ts`
+- `sprint-copilot/src/app/api/issues/route.ts`
+- `sprint-copilot/src/components/BacklogList.tsx`
