@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeBoardStatus } from "./status.ts";
+import { computeBoardStatus, isIssueInColumn } from "./status.ts";
 
 function issue(
   state: "open" | "closed",
@@ -47,4 +47,47 @@ test("closed with state_reason not_planned -> cancelled", () => {
 
 test("closed status labels are ignored -> still done/cancelled, not todo/in_progress", () => {
   assert.equal(computeBoardStatus(issue("closed", ["status:todo"], "completed")), "done");
+});
+
+test("backlog column always matches, regardless of milestone", () => {
+  assert.equal(
+    isIssueInColumn({ status: "backlog", milestone: { number: 5 } }, "backlog", 7),
+    true
+  );
+  assert.equal(isIssueInColumn({ status: "backlog", milestone: null }, "backlog", 7), true);
+});
+
+test("non-backlog column matches when the issue's milestone equals the selected one", () => {
+  assert.equal(
+    isIssueInColumn({ status: "in_progress", milestone: { number: 7 } }, "in_progress", 7),
+    true
+  );
+});
+
+test("non-backlog column excludes an issue milestoned to a different sprint", () => {
+  assert.equal(
+    isIssueInColumn({ status: "in_progress", milestone: { number: 6 } }, "in_progress", 7),
+    false
+  );
+});
+
+test("a milestone-less issue in a non-backlog status still shows, regardless of which sprint is selected — otherwise it's invisible in every view", () => {
+  assert.equal(
+    isIssueInColumn({ status: "in_progress", milestone: null }, "in_progress", 7),
+    true
+  );
+});
+
+test("no milestones exist yet (selectedMilestone null) -> every column shows by status alone", () => {
+  assert.equal(
+    isIssueInColumn({ status: "todo", milestone: null }, "todo", null),
+    true
+  );
+});
+
+test("status mismatch never matches, milestone or not", () => {
+  assert.equal(
+    isIssueInColumn({ status: "todo", milestone: { number: 7 } }, "in_progress", 7),
+    false
+  );
 });

@@ -23,6 +23,7 @@ function issue(number: number, duplicateOf: number | null = null): ClassifiedIss
       points: 1,
       duplicate_of: duplicateOf,
       possibly_stale_reason: null,
+      matches_sprint_focus: false,
     },
   };
 }

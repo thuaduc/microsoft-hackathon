@@ -21,8 +21,16 @@ const CLASSIFICATION_SCHEMA = {
           points: { type: "integer", enum: POINT_SCALE },
           duplicate_of: { type: ["integer", "null"] },
           possibly_stale_reason: { type: ["string", "null"] },
+          matches_sprint_focus: { type: "boolean" },
         },
-        required: ["issue_number", "type", "points", "duplicate_of", "possibly_stale_reason"],
+        required: [
+          "issue_number",
+          "type",
+          "points",
+          "duplicate_of",
+          "possibly_stale_reason",
+          "matches_sprint_focus",
+        ],
         additionalProperties: false,
       },
     },
@@ -37,6 +45,7 @@ interface RawClassification {
   points: number;
   duplicate_of: number | null;
   possibly_stale_reason: string | null;
+  matches_sprint_focus: boolean;
 }
 
 export async function classifyIssues(
@@ -126,6 +135,7 @@ export async function classifyIssues(
       points: item.points,
       duplicate_of: duplicateOf,
       possibly_stale_reason: item.possibly_stale_reason,
+      matches_sprint_focus: item.matches_sprint_focus,
     };
     return classification;
   });

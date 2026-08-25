@@ -137,6 +137,40 @@
   color: var(--text-primary);
 }
 
+.staleReasonToggle {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.staleReasonToggle:hover .issueTitle {
+  text-decoration: underline;
+}
+
+.staleViewLink {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.staleViewLink:hover {
+  text-decoration: underline;
+  color: var(--text-primary);
+}
+
+.staleReason {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
 .flagActionButton {
   flex-shrink: 0;
   margin-left: auto;
@@ -312,6 +346,21 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-secondary);
+}
+
+.focusBadge {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-text);
+  cursor: help;
 }
 
 .bucketDot {

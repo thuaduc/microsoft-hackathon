@@ -43,6 +43,11 @@ export interface IssueClassification {
   // implemented or no longer applies to the project — a flag for the human
   // to review, not auto-excluded from allocation like duplicate_of is.
   possibly_stale_reason: string | null;
+  // True only when a sprintFocus was given AND this issue clearly relates
+  // to it. Always false when no sprintFocus was set. allocate() uses this
+  // to prioritize focus-matching issues within each bucket, ahead of
+  // smaller non-matching ones — see allocate.ts's sort order.
+  matches_sprint_focus: boolean;
 }
 
 // A duplicate issue excluded from allocation, and the canonical issue it

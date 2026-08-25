@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 import styles from "./KanbanBoard.module.css";
 import TicketCard from "./TicketCard";
+import TicketDetailModal from "./TicketDetailModal";
+import { isIssueInColumn } from "@/lib/board/status";
 import type { BoardIssue, BoardStatus } from "@/types";
 
 type LoadStatus = "loading" | "done" | "error";
@@ -20,16 +22,6 @@ const COLUMNS: { key: BoardStatus; label: string }[] = [
   { key: "cancelled", label: "Cancel" },
 ];
 
-// Backlog is the pool sprints get built from, so it's always shown in full;
-// the other columns scope to whichever sprint is selected in the nav. With
-// no sprint selected (no milestones exist yet) there's nothing to scope
-// against, so those columns fall back to showing everything by status.
-function isIssueInColumn(issue: BoardIssue, columnKey: BoardStatus, selectedMilestone: number | null) {
-  if (issue.status !== columnKey) return false;
-  if (columnKey === "backlog" || selectedMilestone === null) return true;
-  return issue.milestone?.number === selectedMilestone;
-}
-
 export default function KanbanBoard() {
   const [loadStatus, setLoadStatus] = useState<LoadStatus>("loading");
   const [issues, setIssues] = useState<BoardIssue[]>([]);
@@ -39,6 +31,7 @@ export default function KanbanBoard() {
   const [moveError, setMoveError] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<BoardStatus | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [linkedIssue, setLinkedIssue] = useState<BoardIssue | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +49,14 @@ export default function KanbanBoard() {
         setMilestones(data.milestones);
         setSelectedMilestone(data.milestones.at(-1)?.number ?? null);
         setLoadStatus("done");
+
+        // Deep link from other screens (e.g. the sprint-review list) — open
+        // that ticket's detail in-app instead of them linking to GitHub.
+        const linkedNumber = Number(new URLSearchParams(window.location.search).get("issue"));
+        if (linkedNumber) {
+          const match = (data.issues as BoardIssue[]).find((issue) => issue.number === linkedNumber);
+          if (match) setLinkedIssue(match);
+        }
       } catch (err) {
         if (cancelled) return;
         setLoadError(err instanceof Error ? err.message : "Network request failed.");
@@ -263,6 +264,7 @@ export default function KanbanBoard() {
           );
         })}
       </div>
+      {linkedIssue && <TicketDetailModal issue={linkedIssue} onClose={() => setLinkedIssue(null)} />}
     </div>
   );
 }

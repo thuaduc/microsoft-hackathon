@@ -131,6 +131,25 @@ read it before touching any track.
     duplicate issue was never in the review list to begin with
     (`consolidateDuplicates()` already excludes it before allocation).
 
+2g. **Sprint focus actually prioritizes which issues get selected, not just
+    their point estimates.** `IssueClassification.matches_sprint_focus`
+    (boolean, set by the LLM — true only when a `sprintFocus` was given and
+    the issue clearly relates to it) feeds `allocate()`'s sort order
+    (`sortByFocusThenPointsThenNumber` in `allocate.ts`): focus-matching
+    issues sort ahead of non-matching ones within the same bucket, *then*
+    ascending by points/number as before. This is what makes "focus on X"
+    actually change the outcome, not just nudge effort estimates — verified
+    live (a focus-matching 3-pt issue displaced other work into the
+    selected set that wasn't selected without a matching focus). Priority
+    order is: guaranteed carry-over (2d, always in, budget comes off the
+    top before this sort ever runs) > focus-match > smaller points > lower
+    issue number. This means a nearly-full carry-over queue can still starve
+    focus-matching issues of budget even though the sort is working
+    correctly — that's expected, not a bug; don't "fix" it by making focus
+    override carry-over without an explicit ask. Shown in `ReviewPanel` as
+    a "focus" badge per matching row (indigo, distinct from the amber
+    "possibly stale" one).
+
 3. **GitHub API gotchas** (verified against docs, not memory):
    - Sub-issues (not currently used — see 2b): `POST
      .../issues/{issue_number}/sub_issues` body `{"sub_issue_id": <id>}` —
@@ -211,11 +230,20 @@ read it before touching any track.
    page.** Nav (`Nav.tsx`, left sidebar) links Kanban / Sprint Planning /
    Chat. The board (`KanbanBoard.tsx`) shows five fixed columns — Backlog,
    Todo, In Progress, Done, Cancel — computed by `computeBoardStatus()`
-   (`src/lib/board/status.ts`, the single source of truth for the
-   issue→column mapping). It has a milestone-scoped sprint nav (‹ Sprint N ›):
-   Backlog always shows every issue with backlog status regardless of
-   milestone; Todo/In Progress/Done/Cancel scope to whichever milestone is
-   selected (`issue.milestone?.number === selectedMilestone`).
+   (`src/lib/board/status.ts`, also home to `isIssueInColumn()`, the single
+   source of truth for which sprint-nav column an issue shows in — both are
+   tested pure functions, not inline component logic). It has a
+   milestone-scoped sprint nav (‹ Sprint N ›): Backlog always shows every
+   issue with backlog status regardless of milestone; Todo/In
+   Progress/Done/Cancel scope to whichever milestone is selected — **except**
+   a milestone-less issue in one of those statuses, which shows regardless
+   of which sprint is selected. That exception is load-bearing, not an
+   edge-case nicety: without it, an in-progress (etc.) issue with no
+   milestone can never equal a specific selected milestone number, so it's
+   invisible in *every* sprint view, permanently — this was a real bug,
+   found and fixed live (issue #28, confirmed via `/api/board` before the
+   fix and the rendered board after). Don't tighten `isIssueInColumn()`
+   back to a plain `===` check.
    Dragging a card writes straight to GitHub via `PATCH /api/board/{number}`
    (optionally also assigning it to the currently-viewed milestone if it
    didn't have one) — optimistic UI update, snaps back with an inline error

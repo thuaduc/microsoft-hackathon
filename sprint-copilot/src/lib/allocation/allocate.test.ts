@@ -9,7 +9,12 @@ const CONFIG: AllocationConfig = {
   bugRatio: 0.3,
 };
 
-function issue(number: number, type: "feature" | "bug", points: number): ClassifiedIssue {
+function issue(
+  number: number,
+  type: "feature" | "bug",
+  points: number,
+  matchesFocus = false
+): ClassifiedIssue {
   return {
     number,
     id: 1000 + number,
@@ -29,6 +34,7 @@ function issue(number: number, type: "feature" | "bug", points: number): Classif
       points,
       duplicate_of: null,
       possibly_stale_reason: null,
+      matches_sprint_focus: matchesFocus,
     },
   };
 }
@@ -128,6 +134,24 @@ test("ties within a bucket break ascending by issue number", () => {
   assert.deepEqual(
     result.selected.map((i) => i.number),
     [1, 2, 3]
+  );
+});
+
+test("a focus-matching issue is preferred over a smaller non-matching one", () => {
+  // #1 (9 pts, no focus) + #2 (10 pts, focus match) sum to 19 > capacity
+  // (18), so at most one can ever be selected — including via top-off, so
+  // this isolates sort order, not just "does it eventually fit somewhere".
+  // Ascending-by-points alone would pick #1 (9 < 10). With focus-priority,
+  // #2 goes first in the sort despite being bigger, fits the feature
+  // budget (12.6) on its own, and #1 no longer fits behind it (19 > 12.6,
+  // and 9 > the 8 pts of leftover total capacity) — so #2 wins instead.
+  const classified = [issue(1, "feature", 9), issue(2, "feature", 10, true)];
+
+  const result = allocate(classified, CONFIG);
+
+  assert.deepEqual(
+    result.selected.map((i) => i.number),
+    [2]
   );
 });
 

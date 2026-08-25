@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { computeTotals } from "@/lib/allocation/allocate";
 import { contrastTextColor, filterStatusLabels } from "@/lib/labels";
 import type {
@@ -23,13 +24,6 @@ function message(err: unknown): string {
   return err instanceof Error ? err.message : "Request failed.";
 }
 
-// Same repo, so the canonical issue's URL is the excluded issue's URL with
-// the number swapped — avoids threading a second URL through the whole
-// consolidate/preview pipeline just for this link.
-function duplicateOfUrl(entry: ConsolidatedEntry): string {
-  return entry.issueUrl.replace(/\/issues\/\d+$/, `/issues/${entry.duplicateOfIssueNumber}`);
-}
-
 interface ReviewIssue {
   number: number;
   title: string;
@@ -41,6 +35,7 @@ interface ReviewIssue {
   inSprint: boolean;
   carriedOverFromMilestone?: string;
   possiblyStaleReason: string | null;
+  matchesSprintFocus: boolean;
 }
 
 function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
@@ -55,6 +50,7 @@ function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
     inSprint: true,
     carriedOverFromMilestone: issue.carriedOverFromMilestone,
     possiblyStaleReason: issue.classification.possibly_stale_reason,
+    matchesSprintFocus: issue.classification.matches_sprint_focus,
   }));
   const unselected: ReviewIssue[] = preview.unselected.map((issue: ClassifiedIssue) => ({
     number: issue.number,
@@ -67,6 +63,7 @@ function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
     inSprint: false,
     carriedOverFromMilestone: issue.carriedOverFromMilestone,
     possiblyStaleReason: issue.classification.possibly_stale_reason,
+    matchesSprintFocus: issue.classification.matches_sprint_focus,
   }));
   return [...selected, ...unselected].sort((a, b) => a.number - b.number);
 }
@@ -115,6 +112,7 @@ export default function ReviewPanel({
   // handleCloseOutdated), since they'd otherwise still get milestoned.
   const [duplicateActions, setDuplicateActions] = useState<Record<number, ActionStatus>>({});
   const [staleActions, setStaleActions] = useState<Record<number, ActionStatus>>({});
+  const [expandedStale, setExpandedStale] = useState<Set<number>>(new Set());
 
   const totals = useMemo(() => {
     const selected = issues.filter((i) => i.inSprint);
@@ -140,6 +138,18 @@ export default function ReviewPanel({
     setIssues((prev) =>
       prev.map((issue) => (issue.number === number ? { ...issue, inSprint: !issue.inSprint } : issue))
     );
+  }
+
+  function toggleStaleReason(number: number) {
+    setExpandedStale((prev) => {
+      const next = new Set(prev);
+      if (next.has(number)) {
+        next.delete(number);
+      } else {
+        next.add(number);
+      }
+      return next;
+    });
   }
 
   async function handleConsolidate(entry: ConsolidatedEntry) {
@@ -223,15 +233,13 @@ export default function ReviewPanel({
                 <div className={styles.itemBody}>
                   <div className={styles.itemTitleRow}>
                     <span className={styles.issueNumber}>#{issue.number}</span>
-                    <a
+                    <Link
                       className={styles.issueTitle}
-                      href={issue.html_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={`/?issue=${issue.number}`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       {issue.title}
-                    </a>
+                    </Link>
                   </div>
                   <div className={styles.itemMetaRow}>
                     {issue.carriedOverFromMilestone && (
@@ -240,6 +248,14 @@ export default function ReviewPanel({
                         title={`Still open from "${issue.carriedOverFromMilestone}"`}
                       >
                         carried over
+                      </span>
+                    )}
+                    {issue.matchesSprintFocus && (
+                      <span
+                        className={styles.focusBadge}
+                        title="Matches this sprint's focus — preferred over smaller non-matching issues"
+                      >
+                        focus
                       </span>
                     )}
                     <span
@@ -311,19 +327,14 @@ export default function ReviewPanel({
                   return (
                     <li key={entry.issueNumber} className={styles.duplicateItem}>
                       <span className={styles.issueNumber}>#{entry.issueNumber}</span>
-                      <a
-                        className={styles.issueTitle}
-                        href={entry.issueUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
+                      <Link className={styles.issueTitle} href={`/?issue=${entry.issueNumber}`}>
                         {entry.issueTitle}
-                      </a>
+                      </Link>
                       <span className={styles.duplicateOfNote}>
                         duplicate of{" "}
-                        <a href={duplicateOfUrl(entry)} target="_blank" rel="noopener noreferrer">
+                        <Link href={`/?issue=${entry.duplicateOfIssueNumber}`}>
                           #{entry.duplicateOfIssueNumber} {entry.duplicateOfTitle}
-                        </a>
+                        </Link>
                       </span>
                       {status === "done" ? (
                         <span className={styles.flagActionDone}>closed ✓</span>
@@ -353,18 +364,25 @@ export default function ReviewPanel({
               <ul className={styles.duplicatesList}>
                 {staleIssues.map((issue) => {
                   const status = staleActions[issue.number] ?? "idle";
+                  const expanded = expandedStale.has(issue.number);
                   return (
                     <li key={issue.number} className={styles.duplicateItem}>
-                      <span className={styles.issueNumber}>#{issue.number}</span>
-                      <a
-                        className={styles.issueTitle}
-                        href={issue.html_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        className={styles.staleReasonToggle}
+                        onClick={() => toggleStaleReason(issue.number)}
+                        aria-expanded={expanded}
                       >
-                        {issue.title}
-                      </a>
-                      <span className={styles.duplicateOfNote}>{issue.possiblyStaleReason}</span>
+                        <span className={styles.issueNumber}>#{issue.number}</span>
+                        <span className={styles.issueTitle}>{issue.title}</span>
+                      </button>
+                      <Link
+                        className={styles.staleViewLink}
+                        href={`/?issue=${issue.number}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        view →
+                      </Link>
                       {status === "done" ? (
                         <span className={styles.flagActionDone}>closed ✓</span>
                       ) : (
@@ -376,6 +394,9 @@ export default function ReviewPanel({
                         >
                           {status === "loading" ? "Closing…" : status === "error" ? "Retry" : "Close"}
                         </button>
+                      )}
+                      {expanded && (
+                        <span className={styles.staleReason}>{issue.possiblyStaleReason}</span>
                       )}
                     </li>
                   );

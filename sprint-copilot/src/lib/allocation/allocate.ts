@@ -30,8 +30,16 @@ export function computeTotals(
   };
 }
 
-function sortByPointsThenNumber(issues: ClassifiedIssue[]): ClassifiedIssue[] {
+// Focus-matching issues (see IssueClassification.matches_sprint_focus, set
+// by the LLM during classification) sort ahead of non-matching ones within
+// the same bucket — otherwise identical to before: ascending by points,
+// then issue number. This is what actually makes "this sprint's focus"
+// affect which issues get selected, not just their point estimates — a
+// focus match beats a smaller non-match for a capacity-limited bucket.
+function sortByFocusThenPointsThenNumber(issues: ClassifiedIssue[]): ClassifiedIssue[] {
   return [...issues].sort((a, b) => {
+    const focusDiff = Number(b.classification.matches_sprint_focus) - Number(a.classification.matches_sprint_focus);
+    if (focusDiff !== 0) return focusDiff;
     const pointsDiff = a.classification.points - b.classification.points;
     if (pointsDiff !== 0) return pointsDiff;
     return a.number - b.number;
@@ -81,8 +89,8 @@ export function allocate(
     .filter((i) => i.classification.type === "bug")
     .reduce((sum, i) => sum + i.classification.points, 0);
 
-  const features = sortByPointsThenNumber(rest.filter((i) => i.classification.type === "feature"));
-  const bugs = sortByPointsThenNumber(rest.filter((i) => i.classification.type === "bug"));
+  const features = sortByFocusThenPointsThenNumber(rest.filter((i) => i.classification.type === "feature"));
+  const bugs = sortByFocusThenPointsThenNumber(rest.filter((i) => i.classification.type === "bug"));
 
   const featureBudget = Math.max(0, config.capacityPoints * config.featureRatio - guaranteedFeaturePoints);
   const bugBudget = Math.max(0, config.capacityPoints * config.bugRatio - guaranteedBugPoints);
@@ -98,7 +106,7 @@ export function allocate(
   let totalUsed = guaranteedFeaturePoints + guaranteedBugPoints + featureFill.used + bugFill.used;
   let leftoverCapacity = Math.max(0, config.capacityPoints - totalUsed);
 
-  const leftoverCandidates = sortByPointsThenNumber([
+  const leftoverCandidates = sortByFocusThenPointsThenNumber([
     ...featureFill.remaining,
     ...bugFill.remaining,
   ]);
