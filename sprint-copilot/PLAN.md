@@ -498,7 +498,7 @@ above, which now reflects the original Approach-A design, not this):
 src/
   types.ts, config.ts                    # shared contracts + constants (updated — see above)
   lib/
-    github/ client.ts, issues.ts, milestones.ts
+    github/ client.ts, issues.ts, milestones.ts, repo.ts
     llm/    prompt.ts, classify.ts, chat.ts
     allocation/ allocate.ts, consolidate.ts (+ .test.ts each)
     board/  status.ts (+ .test.ts)
@@ -524,6 +524,74 @@ src/
     ChatThread.tsx
     BacklogList.tsx                      # dead code, not imported — see note above
 ```
+
+### Addendum — repo-aware relevance flagging (possibly_stale_reason)
+
+Classification previously only compared issues against each other
+(`duplicate_of`). This addendum adds a second signal: comparing each issue
+against the **actual current state of the target repo**, to catch tickets
+that describe something already built or no longer applicable.
+
+**Design choice, made deliberately narrow**: two options were considered —
+(a) fetch just the repo's file tree + README and let the LLM reason from
+structure alone, or (b) additionally fetch the contents of files that look
+related to each ticket (keyword/filename matching) for a more accurate but
+heavier, slower, costlier check. Went with (a). It's a much smaller
+surface (no file-matching heuristics, no risk of fetching the wrong file,
+one predictable cost per run), at the expense of recall — a file tree
+alone can't always tell you a feature exists, so it'll under-flag rather
+than over-flag. That's an acceptable trade for a hackathon-scoped tool;
+revisit only on an explicit ask, and if so, be careful about token cost
+(file contents are much bigger than paths) and about which files to fetch
+per issue.
+
+**Implementation**: `src/lib/github/repo.ts` — two new functions,
+`getRepoTree()` (`GET /repos/{o}/{r}` for `default_branch`, then `GET
+.../git/trees/{branch}?recursive=1`, filtered to blob paths, capped at 400)
+and `getReadme()` (`GET /repos/{o}/{r}/readme` with `Accept:
+application/vnd.github.raw+json` for raw text directly, truncated to 2000
+chars; a 404 — no README — returns `null`, not an error). Both are called
+from `/api/run/preview` right before classification, wrapped in one
+try/catch: a failure just skips the relevance check for that run (logged),
+never aborts the preview. `RepoContext` (`{ paths: string[]; readme:
+string | null }`, exported from `src/lib/llm/prompt.ts`) threads through
+`classifyIssues()` into `buildClassificationPrompt()`'s system prompt as a
+"Repository context" section, explicitly scoped to only affect
+`possibly_stale_reason` — never type/points/duplicate_of.
+
+**Schema/type change**: `IssueClassification` gains `possibly_stale_reason:
+string | null` (added to `CLASSIFICATION_SCHEMA` in `classify.ts` as a
+required, nullable field — Structured Outputs strict mode needs it in both
+`properties` and `required`). Mirrors `duplicate_of`'s null-means-clear
+pattern exactly, for consistency.
+
+**Not auto-excluded from allocation** — this is the key difference from
+`duplicate_of`/`consolidateDuplicates()`. A possibly-stale issue can still
+be selected by `allocate()`; it's purely a review-time signal. `ReviewPanel`
+shows a "possibly stale" badge (reason in the `title` tooltip, same visual
+pattern as the existing "carried over" badge) — no close/delete button, no
+new write path. The user acts on it manually.
+
+**Tested live** against the target repo (which, in this demo's unusual
+nested-monorepo layout, is this very sprint-copilot codebase): the pipeline
+ran end-to-end with no errors, repo tree (82 files) and README (8KB, though
+note — see caveat below) were fetched successfully, and classification
+correctly conformed to the extended schema. Zero issues were flagged
+possibly-stale in that run, which is an expected outcome of the file tree's
+weak signal for this repo's actual backlog titles, not a bug — the LLM was
+explicitly told not to guess without clear support.
+
+**Known caveat, not fixed (would break the general case)**: `getReadme()`
+always fetches the *root* README. In this demo repo specifically, the root
+README is the outer hackathon-challenge-template document, not
+`sprint-copilot/README.md`'s actual project description — so the README
+half of the signal is close to useless for this particular repo's odd
+nested layout. Not special-cased to `sprint-copilot/` on purpose: this
+feature is meant to work for any target repo the app is pointed at, and
+hardcoding a subdirectory would break that. The file tree still carries
+real signal regardless. If this repo's layout is a persistent problem,
+fix it by pointing `GITHUB_REPO`/`GITHUB_OWNER` at a repo whose root
+README describes the actual project, not by special-casing this code.
 
 ## Dependency graph
 
@@ -649,6 +717,12 @@ catching errors per stage into `SprintRunResult.error`.
     screen and is pre-selected, and confirming moves it onto the new
     milestone. If it had `status:in-progress`, confirm that label is gone
     afterward (not stacked alongside the new `status:todo`).
+17. Preview a sprint against a repo with an issue that clearly describes an
+    already-shipped feature (a file/component whose name obviously matches):
+    the activity log shows "Reading repository for relevance context…", and
+    that issue gets a "possibly stale" badge in the review screen with a
+    sensible reason on hover. It's still toggleable in/out like any other
+    issue — not auto-excluded.
 
 ## Critical files
 
@@ -656,6 +730,7 @@ catching errors per stage into `SprintRunResult.error`.
 - `sprint-copilot/src/config.ts` — constants incl. `BUCKET_LABEL`, `COPILOT_ASSIGNEE_LOGIN`
 - `sprint-copilot/src/lib/github/issues.ts`
 - `sprint-copilot/src/lib/github/milestones.ts`
+- `sprint-copilot/src/lib/github/repo.ts` — `getRepoTree()`/`getReadme()`, the relevance-flagging inputs
 - `sprint-copilot/src/lib/llm/classify.ts`, `prompt.ts`
 - `sprint-copilot/src/lib/llm/chat.ts`
 - `sprint-copilot/src/lib/allocation/allocate.ts`, `consolidate.ts`

@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { GitHubIssue, IssueClassification, IssueType } from "@/types";
 import { getOpenAIKey } from "@/config";
-import { buildClassificationPrompt } from "./prompt";
+import { buildClassificationPrompt, type RepoContext } from "./prompt";
 
 const MODEL = "gpt-5.4-mini";
 const POINT_SCALE = [1, 2, 3, 5, 8, 13];
@@ -20,8 +20,9 @@ const CLASSIFICATION_SCHEMA = {
           type: { type: "string", enum: ["feature", "bug"] },
           points: { type: "integer", enum: POINT_SCALE },
           duplicate_of: { type: ["integer", "null"] },
+          possibly_stale_reason: { type: ["string", "null"] },
         },
-        required: ["issue_number", "type", "points", "duplicate_of"],
+        required: ["issue_number", "type", "points", "duplicate_of", "possibly_stale_reason"],
         additionalProperties: false,
       },
     },
@@ -35,13 +36,15 @@ interface RawClassification {
   type: string;
   points: number;
   duplicate_of: number | null;
+  possibly_stale_reason: string | null;
 }
 
 export async function classifyIssues(
   issues: GitHubIssue[],
-  sprintFocus?: string
+  sprintFocus?: string,
+  repoContext?: RepoContext
 ): Promise<IssueClassification[]> {
-  const { system, user } = buildClassificationPrompt(issues, sprintFocus);
+  const { system, user } = buildClassificationPrompt(issues, sprintFocus, repoContext);
   const client = new OpenAI({ apiKey: getOpenAIKey() });
 
   let response;
@@ -116,6 +119,7 @@ export async function classifyIssues(
       type: item.type as IssueType,
       points: item.points,
       duplicate_of: duplicateOf,
+      possibly_stale_reason: item.possibly_stale_reason,
     };
     return classification;
   });

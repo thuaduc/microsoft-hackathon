@@ -210,6 +210,21 @@
   color: var(--text-secondary);
 }
 
+.staleBadge {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--bug);
+  background: var(--bug-soft);
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--bug-text);
+  cursor: help;
+}
+
 .bucketDot {
   width: 6px;
   height: 6px;

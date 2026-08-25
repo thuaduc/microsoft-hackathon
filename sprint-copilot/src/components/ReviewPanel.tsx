@@ -20,6 +20,7 @@ interface ReviewIssue {
   labelColors?: Record<string, string>;
   inSprint: boolean;
   carriedOverFromMilestone?: string;
+  possiblyStaleReason: string | null;
 }
 
 function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
@@ -33,6 +34,7 @@ function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
     labelColors: issue.labelColors,
     inSprint: true,
     carriedOverFromMilestone: issue.carriedOverFromMilestone,
+    possiblyStaleReason: issue.classification.possibly_stale_reason,
   }));
   const unselected: ReviewIssue[] = preview.unselected.map((issue: ClassifiedIssue) => ({
     number: issue.number,
@@ -44,6 +46,7 @@ function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
     labelColors: issue.labelColors,
     inSprint: false,
     carriedOverFromMilestone: issue.carriedOverFromMilestone,
+    possiblyStaleReason: issue.classification.possibly_stale_reason,
   }));
   return [...selected, ...unselected].sort((a, b) => a.number - b.number);
 }
@@ -166,6 +169,11 @@ export default function ReviewPanel({
                 {issue.carriedOverFromMilestone && (
                   <span className={styles.carryOverBadge} title={`Still open from "${issue.carriedOverFromMilestone}"`}>
                     carried over
+                  </span>
+                )}
+                {issue.possiblyStaleReason && (
+                  <span className={styles.staleBadge} title={issue.possiblyStaleReason}>
+                    possibly stale
                   </span>
                 )}
                 <span

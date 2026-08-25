@@ -26,12 +26,6 @@ export default function RunButton({
         {isLoading && <span className={styles.spinner} aria-hidden="true" />}
         {label}
       </button>
-      {status === "idle" && (
-        <span className={styles.hint}>
-          Classifies and allocates the backlog, then lets you review and adapt
-          before anything is written to GitHub.
-        </span>
-      )}
     </div>
   );
 }

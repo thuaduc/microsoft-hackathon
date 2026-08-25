@@ -68,6 +68,28 @@ read it before touching any track.
     get re-milestoned with a stale `status:in-progress` label still on it
     (see the labels gotcha below for that half of the fix).
 
+2e. **Classification also flags possibly-stale issues, using real repo
+    content — not just a review of other issues.** Before classifying,
+    `/api/run/preview` fetches the target repo's file tree
+    (`getRepoTree()`, git trees API, capped at 400 blob paths) and README
+    (`getReadme()`, raw content, truncated to 2000 chars) —
+    `src/lib/github/repo.ts` — and folds both into the classification
+    system prompt as `RepoContext` (`src/lib/llm/prompt.ts`). The LLM sets
+    `IssueClassification.possibly_stale_reason` (a string, or `null`) when
+    the file tree/README clearly show an issue is already implemented or no
+    longer applies — explicitly instructed not to guess from weak signal.
+    **Deliberately cheap**: file tree + README only, no file contents
+    fetched per-issue — a heavier "fetch content of files that look
+    related to each ticket" version was considered and rejected as
+    unnecessary complexity for this pass. Unlike `duplicate_of`, a
+    possibly-stale issue is **not** auto-excluded from allocation — it's a
+    flag for the human to review (a "possibly stale" badge in
+    `ReviewPanel`, reason in the tooltip), not an automatic action. No
+    close/delete button — the user acts on it manually (open on GitHub, or
+    the existing Kanban drag-to-close). Both repo-content fetches are
+    non-fatal: a failure just skips the relevance check for that run
+    (logged), same pattern as the carry-over lookup in 2d.
+
 3. **GitHub API gotchas** (verified against docs, not memory):
    - Sub-issues (not currently used — see 2b): `POST
      .../issues/{issue_number}/sub_issues` body `{"sub_issue_id": <id>}` —

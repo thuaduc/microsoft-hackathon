@@ -22,6 +22,7 @@ function issue(number: number, duplicateOf: number | null = null): ClassifiedIss
       type: "bug",
       points: 1,
       duplicate_of: duplicateOf,
+      possibly_stale_reason: null,
     },
   };
 }

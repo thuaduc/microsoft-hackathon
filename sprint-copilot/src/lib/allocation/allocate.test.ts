@@ -28,6 +28,7 @@ function issue(number: number, type: "feature" | "bug", points: number): Classif
       type,
       points,
       duplicate_of: null,
+      possibly_stale_reason: null,
     },
   };
 }

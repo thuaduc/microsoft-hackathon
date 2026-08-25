@@ -39,6 +39,10 @@ export interface IssueClassification {
   type: IssueType;
   points: number; // small fixed scale, e.g. 1/2/3/5/8/13
   duplicate_of: number | null; // issue_number of a near-duplicate/overlapping issue, if any
+  // Set when the repo's file tree/README suggest this issue is already
+  // implemented or no longer applies to the project — a flag for the human
+  // to review, not auto-excluded from allocation like duplicate_of is.
+  possibly_stale_reason: string | null;
 }
 
 // A duplicate issue excluded from allocation, and the canonical issue it
@@ -86,6 +90,7 @@ export interface WriteOutcome {
   bucket: Bucket;
   milestoneAssigned: boolean;
   labelsApplied: boolean;
+  assigneeApplied: boolean;
   errors: string[]; // per-item, non-fatal
 }
 
