@@ -21,10 +21,12 @@ const COLUMNS: { key: BoardStatus; label: string }[] = [
 ];
 
 // Backlog is the pool sprints get built from, so it's always shown in full;
-// the other columns scope to whichever sprint is selected in the nav.
+// the other columns scope to whichever sprint is selected in the nav. With
+// no sprint selected (no milestones exist yet) there's nothing to scope
+// against, so those columns fall back to showing everything by status.
 function isIssueInColumn(issue: BoardIssue, columnKey: BoardStatus, selectedMilestone: number | null) {
   if (issue.status !== columnKey) return false;
-  if (columnKey === "backlog") return true;
+  if (columnKey === "backlog" || selectedMilestone === null) return true;
   return issue.milestone?.number === selectedMilestone;
 }
 
@@ -81,18 +83,28 @@ export default function KanbanBoard() {
   // Optimistic: the card moves immediately; on failure it snaps back and
   // an inline message shows why — no retries, matching the app's minimal
   // error-handling bar elsewhere.
+  //
+  // Dropping a backlog (milestone-less) issue into a sprint-scoped column
+  // assigns it to the sprint currently being viewed — otherwise it would
+  // vanish, matching neither backlog nor the newly-selected sprint.
   async function handleStatusChange(issueNumber: number, status: BoardStatus) {
     const previous = issues;
+    const milestoneNumber = status !== "backlog" && selectedMilestone !== null ? selectedMilestone : undefined;
+    const milestone = milestoneNumber !== undefined ? (selectedSprint ?? null) : undefined;
     setMoveError(null);
     setIssues((current) =>
-      current.map((issue) => (issue.number === issueNumber ? { ...issue, status } : issue))
+      current.map((issue) =>
+        issue.number === issueNumber
+          ? { ...issue, status, ...(milestone !== undefined ? { milestone } : {}) }
+          : issue
+      )
     );
 
     try {
       const res = await fetch(`/api/board/${issueNumber}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, ...(milestoneNumber !== undefined ? { milestoneNumber } : {}) }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { computeTotals } from "@/lib/allocation/allocate";
-import { FEATURE_RATIO, BUG_RATIO } from "@/config";
 import type { AllocatedIssue, Bucket, ClassifiedIssue, ConfirmSelection, PreviewResult } from "@/types";
 import styles from "./ReviewPanel.module.css";
 
@@ -16,6 +15,8 @@ interface ReviewIssue {
   html_url: string;
   points: number;
   bucket: Bucket;
+  labels: string[];
+  labelColors?: Record<string, string>;
   inSprint: boolean;
 }
 
@@ -26,6 +27,8 @@ function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
     html_url: issue.html_url,
     points: issue.classification.points,
     bucket: issue.bucket,
+    labels: issue.labels,
+    labelColors: issue.labelColors,
     inSprint: true,
   }));
   const unselected: ReviewIssue[] = preview.unselected.map((issue: ClassifiedIssue) => ({
@@ -34,9 +37,34 @@ function toReviewIssues(preview: PreviewResult): ReviewIssue[] {
     html_url: issue.html_url,
     points: issue.classification.points,
     bucket: issue.classification.type,
+    labels: issue.labels,
+    labelColors: issue.labelColors,
     inSprint: false,
   }));
   return [...selected, ...unselected].sort((a, b) => a.number - b.number);
+}
+
+// One column per distinct primary (first) label found on the previewed
+// issues — real GitHub labels (bug, enhancement, ...), not the algorithm's
+// own feature/bug bucket. Order follows each label's first appearance in
+// the (already number-sorted) issue list; unlabeled issues get their own
+// trailing column.
+const UNLABELED = "Unlabeled";
+
+function groupByLabel(issues: ReviewIssue[]): Array<[string, ReviewIssue[]]> {
+  const groups = new Map<string, ReviewIssue[]>();
+  for (const issue of issues) {
+    const key = issue.labels[0] ?? UNLABELED;
+    const group = groups.get(key);
+    if (group) {
+      group.push(issue);
+    } else {
+      groups.set(key, [issue]);
+    }
+  }
+  const entries = [...groups.entries()];
+  entries.sort(([a], [b]) => (a === UNLABELED ? 1 : b === UNLABELED ? -1 : 0));
+  return entries;
 }
 
 export default function ReviewPanel({
@@ -72,10 +100,7 @@ export default function ReviewPanel({
   const featurePct = barBase > 0 ? (totals.featurePointsUsed / barBase) * 100 : 0;
   const bugPct = barBase > 0 ? (totals.bugPointsUsed / barBase) * 100 : 0;
 
-  const featureBudget = capacity * FEATURE_RATIO;
-  const bugBudget = capacity * BUG_RATIO;
-  const features = issues.filter((i) => i.bucket === "feature");
-  const bugs = issues.filter((i) => i.bucket === "bug");
+  const labelGroups = useMemo(() => groupByLabel(issues), [issues]);
 
   function toggle(number: number) {
     setIssues((prev) =>
@@ -92,14 +117,18 @@ export default function ReviewPanel({
 
   const inSprintCount = issues.filter((i) => i.inSprint).length;
 
-  function renderGroup(label: string, groupIssues: ReviewIssue[], used: number, budget: number) {
-    if (groupIssues.length === 0) return null;
+  function renderColumn(label: string, groupIssues: ReviewIssue[]) {
+    const color = groupIssues[0]?.labelColors?.[label];
+    const points = groupIssues.reduce((sum, i) => sum + i.points, 0);
     return (
-      <div className={styles.group}>
-        <div className={styles.groupHeader}>
-          <span className={styles.groupTitle}>{label}</span>
-          <span className={styles.groupMeta}>
-            {formatPts(used)} / {formatPts(budget)} pts budget
+      <div key={label} className={styles.column}>
+        <div className={styles.columnHeader}>
+          <span className={styles.columnTitle}>
+            {color && <span className={styles.labelDot} style={{ background: `#${color}` }} />}
+            {label}
+          </span>
+          <span className={styles.columnMeta}>
+            {formatPts(points)} pts · {groupIssues.length}
           </span>
         </div>
         <ul className={styles.list}>
@@ -122,6 +151,13 @@ export default function ReviewPanel({
                 >
                   {issue.title}
                 </a>
+                <span
+                  className={`${styles.bucketDot} ${
+                    issue.bucket === "feature" ? styles.bucketFeature : styles.bucketBug
+                  }`}
+                  title={issue.bucket}
+                  aria-hidden="true"
+                />
                 <span className={styles.points}>{issue.points} pts</span>
               </label>
             </li>
@@ -172,8 +208,9 @@ export default function ReviewPanel({
         </p>
       )}
 
-      {renderGroup("Features", features, totals.featurePointsUsed, featureBudget)}
-      {renderGroup("Bugs", bugs, totals.bugPointsUsed, bugBudget)}
+      <div className={styles.columns}>
+        {labelGroups.map(([label, groupIssues]) => renderColumn(label, groupIssues))}
+      </div>
 
       <div className={styles.actions}>
         <button type="button" className={styles.cancelButton} onClick={onCancel} disabled={busy}>

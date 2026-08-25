@@ -102,7 +102,7 @@ export default function ChatThread() {
   if (isEmpty) {
     return (
       <div className={styles.hero}>
-        <h1 className={styles.heroHeadline}>What&rsquo;s on the backlog today?</h1>
+        <h1 className={styles.heroHeadline}>Ask anything</h1>
         {inputPill}
         <div className={styles.suggestions}>
           {SUGGESTIONS.map((s) => (

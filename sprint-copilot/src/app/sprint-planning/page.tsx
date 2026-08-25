@@ -105,34 +105,31 @@ export default function SprintPlanning() {
   const showLog = log.length > 0;
 
   return (
-    <div className={styles.page}>
-      <div className={styles.glow} aria-hidden="true" />
-      <main className={styles.shell}>
-        <header className={styles.header}>
-          <h1 className={styles.headline}>Plan the next sprint.</h1>
-          {nextSprintTitle && <span className={styles.nextSprint}>Next sprint: {nextSprintTitle}</span>}
-        </header>
+    <main className={styles.page}>
+      <header className={styles.header}>
+        <h1 className={styles.headline}>Plan the next sprint.</h1>
+        {nextSprintTitle && <span className={styles.nextSprint}>Next sprint: {nextSprintTitle}</span>}
+      </header>
 
-        <div className={styles.panel}>
-          {showRunButton && (
-            <RunButton
-              status={status === "previewing" ? "previewing" : status === "error" ? "error" : "idle"}
-              onClick={handlePreview}
-            />
-          )}
-          {showLog && <ActivityLog lines={log} live={status === "previewing" || status === "writing"} />}
-          {showReview && (
-            <ReviewPanel
-              preview={preview}
-              defaultMilestoneTitle={nextSprintTitle ?? "Sprint"}
-              busy={status === "writing"}
-              onConfirm={handleConfirm}
-              onCancel={handleCancel}
-            />
-          )}
-          {result && <ResultView result={result} />}
-        </div>
-      </main>
-    </div>
+      <div className={styles.panel}>
+        {showRunButton && (
+          <RunButton
+            status={status === "previewing" ? "previewing" : status === "error" ? "error" : "idle"}
+            onClick={handlePreview}
+          />
+        )}
+        {showLog && <ActivityLog lines={log} live={status === "previewing" || status === "writing"} />}
+        {showReview && (
+          <ReviewPanel
+            preview={preview}
+            defaultMilestoneTitle={nextSprintTitle ?? "Sprint"}
+            busy={status === "writing"}
+            onConfirm={handleConfirm}
+            onCancel={handleCancel}
+          />
+        )}
+        {result && <ResultView result={result} />}
+      </div>
+    </main>
   );
 }

@@ -44,6 +44,9 @@ read it before touching any track.
 
 5. **No database, no auth flow.** State lives only in the request/response
    cycle and React state. Auth is a single GitHub PAT in a server-side env var.
+   Exception: the settings page's free-text team preferences persist in
+   `localStorage` (client-side per-browser cache, not a server-side database)
+   and are forwarded into the classification prompt on each preview run.
 
 6. **CORS is a non-issue by design.** The browser only talks to the
    same-origin `/api/run` route; GitHub and OpenAI are called server-side from
