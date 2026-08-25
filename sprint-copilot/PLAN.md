@@ -230,15 +230,21 @@ export async function classifyIssues(issues: GitHubIssue[]): Promise<IssueClassi
 // an input issue.number exactly once — throw ClassificationError otherwise.
 ```
 
-Use OpenAI's structured outputs (`response_format: { type: "json_schema", ... }`
-with `strict: true`, schema mirroring `IssueClassification[]`) or function/tool
-calling — not free-text JSON parsing — to remove most
-markdown-fencing/prose-wrapping failure modes. Truncate issue bodies defensively
-(~500 chars). Instruct the model to pick `points` from a small fixed set
-(1/2/3/5/8/13). Confirm the current OpenAI model id and the exact structured-output
-API shape against OpenAI's live docs at build time (model names and API shapes
-change) rather than hardcoding one from memory — this repo's `claude-api` skill
-is Anthropic-specific and does not apply here.
+**Resolved (checked against OpenAI's live docs, not memory — `response_format`/Chat
+Completions JSON mode is legacy as of this build):** uses the **Responses API**,
+`client.responses.create({ model, input, text: { format: { type: "json_schema",
+name, schema, strict: true } } })`, reading `response.output_text`. Model:
+`gpt-5.4-mini`. Schema wraps the array as `{ classifications: [...] }` (Structured
+Outputs schemas are objects at the root) with every `IssueClassification` field
+required and `additionalProperties: false`; `subticket_suggestions` is always
+present in the schema (empty array when `!is_epic`) and only copied onto the
+returned object when non-empty, to match the optional field in `types.ts`.
+Truncates issue bodies to ~500 chars. `classifyIssues` throws `ClassificationError`
+on a request failure, unparseable JSON, a length mismatch, an unknown/duplicate
+`issue_number`, or a result that doesn't cover every input issue exactly once.
+Live-tested against the real API with `src/fixtures/sample-issues.json` (10/10
+classified, both epic-shaped issues correctly flagged with sensible
+`subticket_suggestions`) — no fixture/mock stands in for this module.
 
 **Track C — Allocation algorithm** (`src/lib/allocation/`) — pure, synchronous, no
 I/O. Cheapest track to finish; good candidate to help others once done.
