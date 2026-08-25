@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
 import styles from "./KanbanBoard.module.css";
 import TicketCard from "./TicketCard";
 import type { BoardIssue, BoardStatus } from "@/types";
@@ -38,6 +38,7 @@ export default function KanbanBoard() {
   const [loadError, setLoadError] = useState<string | undefined>();
   const [moveError, setMoveError] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<BoardStatus | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +67,15 @@ export default function KanbanBoard() {
       cancelled = true;
     };
   }, []);
+
+  const filteredIssues = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return issues;
+    return issues.filter((issue) => {
+      const haystack = `${issue.title} ${issue.body ?? ""} ${issue.labels.join(" ")}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [issues, searchQuery]);
 
   const selectedIndex = milestones.findIndex((m) => m.number === selectedMilestone);
   const selectedSprint = selectedIndex >= 0 ? milestones[selectedIndex] : null;
@@ -171,33 +181,57 @@ export default function KanbanBoard() {
 
   return (
     <div className={styles.board}>
-      <div className={styles.sprintNav}>
-        <button
-          type="button"
-          className={styles.sprintNavButton}
-          onClick={goToPreviousSprint}
-          disabled={selectedIndex <= 0}
-          aria-label="Previous sprint"
-        >
-          ‹
-        </button>
-        <span className={styles.sprintNavLabel}>
-          {selectedSprint ? `Sprint ${selectedIndex + 1}` : "No sprints yet"}
-        </span>
-        <button
-          type="button"
-          className={styles.sprintNavButton}
-          onClick={goToNextSprint}
-          disabled={selectedIndex < 0 || selectedIndex >= milestones.length - 1}
-          aria-label="Next sprint"
-        >
-          ›
-        </button>
+      <div className={styles.toolbar}>
+        <div className={styles.sprintNav}>
+          <button
+            type="button"
+            className={styles.sprintNavButton}
+            onClick={goToPreviousSprint}
+            disabled={selectedIndex <= 0}
+            aria-label="Previous sprint"
+          >
+            ‹
+          </button>
+          <span className={styles.sprintNavLabel}>
+            {selectedSprint ? `Sprint ${selectedIndex + 1}` : "No sprints yet"}
+          </span>
+          <button
+            type="button"
+            className={styles.sprintNavButton}
+            onClick={goToNextSprint}
+            disabled={selectedIndex < 0 || selectedIndex >= milestones.length - 1}
+            aria-label="Next sprint"
+          >
+            ›
+          </button>
+        </div>
+        <div className={styles.searchBox}>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search issues…"
+            className={styles.searchInput}
+            aria-label="Search issues"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className={styles.searchClear}
+              onClick={() => setSearchQuery("")}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
       {moveError && <p className={styles.moveError}>{moveError}</p>}
       <div className={styles.columns}>
         {COLUMNS.map((column) => {
-          const columnIssues = issues.filter((issue) => isIssueInColumn(issue, column.key, selectedMilestone));
+          const columnIssues = filteredIssues.filter((issue) =>
+            isIssueInColumn(issue, column.key, selectedMilestone)
+          );
           const isDragOver = dragOverColumn === column.key;
           return (
             <div
