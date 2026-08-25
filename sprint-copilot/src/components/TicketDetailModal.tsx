@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import styles from "./TicketDetailModal.module.css";
-import { STATUS_IN_PROGRESS_LABEL, STATUS_TODO_LABEL } from "@/config";
-import { contrastTextColor, pickTypeLabel } from "@/lib/labels";
+import { contrastTextColor, filterStatusLabels, pickTypeLabel } from "@/lib/labels";
 import type { BoardIssue, LinkedPullRequest } from "@/types";
 
 const STATUS_LABEL: Record<BoardIssue["status"], string> = {
@@ -34,9 +33,7 @@ export default function TicketDetailModal({
   issue: BoardIssue;
   onClose: () => void;
 }) {
-  const visibleLabels = issue.labels.filter(
-    (label) => label !== STATUS_TODO_LABEL && label !== STATUS_IN_PROGRESS_LABEL
-  );
+  const visibleLabels = filterStatusLabels(issue.labels);
   const typeLabel = pickTypeLabel(visibleLabels);
   const otherLabels = visibleLabels.filter((label) => label !== typeLabel);
   const typeColor = typeLabel ? issue.labelColors?.[typeLabel] : undefined;
@@ -104,8 +101,11 @@ export default function TicketDetailModal({
           {otherLabels.map((label) => {
             const color = issue.labelColors?.[label];
             return (
-              <span key={label} className={styles.label}>
-                {color && <span className={styles.labelDot} style={{ background: `#${color}` }} />}
+              <span
+                key={label}
+                className={styles.label}
+                style={color ? { background: `#${color}`, color: contrastTextColor(color) } : undefined}
+              >
                 {label}
               </span>
             );

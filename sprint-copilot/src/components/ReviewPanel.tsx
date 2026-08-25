@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { computeTotals } from "@/lib/allocation/allocate";
+import { contrastTextColor, filterStatusLabels } from "@/lib/labels";
 import type { AllocatedIssue, Bucket, ClassifiedIssue, ConfirmSelection, PreviewResult } from "@/types";
 import styles from "./ReviewPanel.module.css";
 
@@ -54,7 +55,7 @@ const UNLABELED = "Unlabeled";
 function groupByLabel(issues: ReviewIssue[]): Array<[string, ReviewIssue[]]> {
   const groups = new Map<string, ReviewIssue[]>();
   for (const issue of issues) {
-    const key = issue.labels[0] ?? UNLABELED;
+    const key = filterStatusLabels(issue.labels)[0] ?? UNLABELED;
     const group = groups.get(key);
     if (group) {
       group.push(issue);
@@ -124,8 +125,16 @@ export default function ReviewPanel({
       <div key={label} className={styles.column}>
         <div className={styles.columnHeader}>
           <span className={styles.columnTitle}>
-            {color && <span className={styles.labelDot} style={{ background: `#${color}` }} />}
-            {label}
+            {color ? (
+              <span
+                className={styles.columnLabelBadge}
+                style={{ background: `#${color}`, color: contrastTextColor(color) }}
+              >
+                {label}
+              </span>
+            ) : (
+              label
+            )}
           </span>
           <span className={styles.columnMeta}>
             {formatPts(points)} pts · {groupIssues.length}

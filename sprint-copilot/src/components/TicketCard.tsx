@@ -3,8 +3,7 @@
 import { useEffect, useState, type DragEvent, type MouseEvent } from "react";
 import styles from "./TicketCard.module.css";
 import TicketDetailModal from "./TicketDetailModal";
-import { STATUS_IN_PROGRESS_LABEL, STATUS_TODO_LABEL } from "@/config";
-import { contrastTextColor, pickTypeLabel } from "@/lib/labels";
+import { contrastTextColor, filterStatusLabels, pickTypeLabel } from "@/lib/labels";
 import type { BoardIssue, LinkedPullRequest } from "@/types";
 
 function formatDate(iso: string): string {
@@ -25,20 +24,19 @@ export default function TicketCard({
   onDragEnd: () => void;
   onAssignCopilot: (issueNumber: number) => Promise<void>;
 }) {
-  const visibleLabels = issue.labels.filter(
-    (label) => label !== STATUS_TODO_LABEL && label !== STATUS_IN_PROGRESS_LABEL
-  );
+  const visibleLabels = filterStatusLabels(issue.labels);
   const typeLabel = pickTypeLabel(visibleLabels);
   const otherLabels = visibleLabels.filter((label) => label !== typeLabel);
   const typeColor = typeLabel ? issue.labelColors?.[typeLabel] : undefined;
 
-  const showCopilotAction = issue.status === "todo" || issue.status === "in_progress";
+  const showPullRequestBadge = issue.status === "todo" || issue.status === "in_progress";
+  const showCopilotAction = issue.status === "todo";
   const [assigning, setAssigning] = useState(false);
   const [linkedPullRequest, setLinkedPullRequest] = useState<LinkedPullRequest | null>(null);
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => {
-    if (!showCopilotAction) return;
+    if (!showPullRequestBadge) return;
     let cancelled = false;
     fetch(`/api/board/${issue.number}/pull-request`)
       .then((res) => (res.ok ? res.json() : null))
@@ -51,7 +49,7 @@ export default function TicketCard({
     return () => {
       cancelled = true;
     };
-  }, [issue.number, showCopilotAction]);
+  }, [issue.number, showPullRequestBadge]);
 
   async function handleAssignCopilot() {
     setAssigning(true);
@@ -84,6 +82,7 @@ export default function TicketCard({
           <span className={styles.number}>#{issue.number}</span>
           {issue.title}
         </div>
+      {issue.body && <p className={styles.description}>{issue.body}</p>}
       {(typeLabel || otherLabels.length > 0) && (
         <div className={styles.labels}>
           {typeLabel && (
@@ -101,8 +100,11 @@ export default function TicketCard({
           {otherLabels.map((label) => {
             const color = issue.labelColors?.[label];
             return (
-              <span key={label} className={styles.label}>
-                {color && <span className={styles.labelDot} style={{ background: `#${color}` }} />}
+              <span
+                key={label}
+                className={styles.label}
+                style={color ? { background: `#${color}`, color: contrastTextColor(color) } : undefined}
+              >
                 {label}
               </span>
             );
@@ -113,19 +115,21 @@ export default function TicketCard({
         <span>Created {formatDate(issue.created_at)}</span>
         {issue.closed_at && <span>Closed {formatDate(issue.closed_at)}</span>}
       </div>
-      {showCopilotAction && (
+      {(showCopilotAction || linkedPullRequest) && (
         <div className={styles.copilotRow}>
-          <button
-            type="button"
-            className={styles.copilotButton}
-            onClick={(event) => {
-              stopPropagation(event);
-              handleAssignCopilot();
-            }}
-            disabled={assigning}
-          >
-            {assigning ? "Assigning…" : "Do with Copilot"}
-          </button>
+          {showCopilotAction && (
+            <button
+              type="button"
+              className={styles.copilotButton}
+              onClick={(event) => {
+                stopPropagation(event);
+                handleAssignCopilot();
+              }}
+              disabled={assigning}
+            >
+              {assigning ? "Assigning…" : "Do with Copilot"}
+            </button>
+          )}
           {linkedPullRequest && (
             <a
               className={
