@@ -7,6 +7,7 @@ import styles from "./Nav.module.css";
 const LINKS = [
   { href: "/", label: "Kanban" },
   { href: "/sprint-planning", label: "Sprint Planning" },
+  { href: "/sprint-history", label: "Sprint History" },
   { href: "/chat", label: "Chat" },
 ];
 
