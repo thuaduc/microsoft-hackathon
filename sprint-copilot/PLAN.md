@@ -426,13 +426,25 @@ backdrop+dialog (no library) showing full read-only issue detail.
 
 **Copilot hand-off**: a "Do with Copilot" action on Todo/In-Progress cards
 (`TicketCard.tsx`) calls `POST /api/board/{number}/copilot`, which assigns
-GitHub's Copilot coding agent (`assignCopilotToIssue()` — additive
-`POST .../assignees` with `COPILOT_ASSIGNEE_LOGIN = "copilot-swe-agent"`)
-and moves the card to In Progress. There's no webhook/notification for the
-PR Copilot later opens; cards instead call `GET
-/api/board/{number}/pull-request` (`getLinkedPullRequest()`, reads the
-issue's `/timeline` for a `cross-referenced` event) to show a best-effort
-open/merged/closed PR badge — a miss just means no PR yet, not an error.
+GitHub's Copilot coding agent and moves the card to In Progress.
+`assignCopilotToIssue()` (`src/lib/github/issues.ts`) does **not** use the
+plain REST `POST .../assignees` endpoint — that was tried first and
+verified against a live repo to return 201 while silently dropping the
+`copilot-swe-agent` login (empty `assignees` array, no error). The fix:
+GraphQL. First query `suggestedActors(capabilities: [CAN_BE_ASSIGNED])` on
+the repo for Copilot's bot actor `id` (`login === COPILOT_ASSIGNEE_LOGIN`)
+plus the issue's node `id`, then mutate `addAssigneesToAssignable(input: {
+assignableId, assigneeIds: [id] })` with header `GraphQL-Features:
+issues_copilot_assignment_api_support`. Throws a clear error if Copilot
+isn't enabled as an assignable actor on the repo. This needed a new
+`githubGraphQL()` helper in `src/lib/github/client.ts` — POSTs to
+`/graphql`, and importantly checks the response body for an `errors` array
+itself, since GraphQL failures come back as HTTP 200, not a non-2xx status.
+There's no webhook/notification for the PR Copilot later opens; cards
+instead call `GET /api/board/{number}/pull-request`
+(`getLinkedPullRequest()`, reads the issue's `/timeline` for a
+`cross-referenced` event) to show a best-effort open/merged/closed PR
+badge — a miss just means no PR yet, not an error.
 
 **Chat assistant** (`/chat`, `ChatThread.tsx` + `POST /api/chat` +
 `src/lib/llm/chat.ts`) is a read-only Q&A surface over the live board — no

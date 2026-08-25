@@ -66,11 +66,23 @@ read it before touching any track.
      `src/lib/labels.ts`'s `TYPE_LABEL_PATTERN`). Confirm also applies
      `agent-drafted` and `STATUS_TODO_LABEL` (`"status:todo"`) to every
      written issue.
-   - Copilot hand-off: `POST .../issues/{issue_number}/assignees` body
-     `{"assignees": [COPILOT_ASSIGNEE_LOGIN]}` (bot login
-     `"copilot-swe-agent"`) assigns GitHub's Copilot coding agent — additive,
-     same as labels. There's no push-based notification for the PR it opens;
-     `getLinkedPullRequest()` reads the issue's `/timeline` for a
+   - Copilot hand-off: **do not use the plain REST `POST
+     .../issues/{issue_number}/assignees` endpoint** — verified against a
+     live repo that it returns 201 but silently drops the
+     `"copilot-swe-agent"` login (empty `assignees` array afterward, no
+     error). The only working mechanism is GraphQL: query
+     `suggestedActors(capabilities: [CAN_BE_ASSIGNED])` on the repo to get
+     Copilot's bot actor `id` (matching `login === COPILOT_ASSIGNEE_LOGIN`)
+     plus the issue's node `id`, then mutate
+     `addAssigneesToAssignable(input: { assignableId, assigneeIds: [id] })`
+     with header `GraphQL-Features: issues_copilot_assignment_api_support`
+     — see `assignCopilotToIssue()` in `issues.ts` and `githubGraphQL()` in
+     `client.ts` (the latter also matters generically: GraphQL errors come
+     back as HTTP 200 with an `errors` array, not a non-2xx status, so a
+     plain `res.ok` check won't catch them). Throws a clear error if Copilot
+     isn't enabled as an assignable actor on the repo, instead of silently
+     no-oping. There's no push-based notification for the PR Copilot later
+     opens; `getLinkedPullRequest()` reads the issue's `/timeline` for a
      `cross-referenced` event as a best-effort, poll-on-view lookup.
    - `GET /repos/{owner}/{repo}/issues` also returns pull requests — filter
      out any item with a `pull_request` key (done once, centrally, in
@@ -111,9 +123,11 @@ read it before touching any track.
    (optionally also assigning it to the currently-viewed milestone if it
    didn't have one) — optimistic UI update, snaps back with an inline error
    on failure, no retries. Clicking a card opens `TicketDetailModal.tsx`
-   (read-only). A Todo/In-Progress card can be handed to GitHub's Copilot
-   coding agent via `POST /api/board/{number}/copilot`, which also moves it
-   to In Progress; a PR badge on the card comes from `GET
+   (read-only). A Todo card can be handed to GitHub's Copilot coding agent
+   via `POST /api/board/{number}/copilot`, which also moves it to In
+   Progress — the "Do with Copilot" button doesn't show on already-In
+   Progress cards, since hand-off only makes sense once. A PR badge on the
+   card (shown on both Todo and In Progress cards) comes from `GET
    /api/board/{number}/pull-request`.
 
 8. **Chat (`/chat`, `ChatThread.tsx` + `POST /api/chat`) is read-only.** It
