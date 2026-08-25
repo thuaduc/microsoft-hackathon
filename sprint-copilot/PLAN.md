@@ -399,6 +399,120 @@ Live-tested against the real target repo: preview correctly fetched,
 classified, and allocated a real backlog; confirm correctly created a real
 milestone and assigned/labeled a real issue, streaming progress the whole way.
 
+### Addendum — Kanban board, Copilot hand-off, chat assistant, label consolidation, duplicate detection
+
+Post-preview/confirm, the app grew well past "sprint-planning page + a
+backlog list above it." This addendum documents what shipped; it's current
+state, not history — extend from here, don't rebuild the sections above.
+
+**Kanban board is now `/` (the default page)**, replacing the old
+`BacklogList`-above-the-run-button panel — `BacklogList.tsx` still exists on
+disk but is unused dead code, don't wire it back in without an explicit ask.
+`KanbanBoard.tsx` renders five fixed columns (Backlog / Todo / In Progress /
+Done / Cancel) driven by `computeBoardStatus()` (`src/lib/board/status.ts`,
+new — closed issues map to Done/Cancel via `state_reason`, open issues map
+via the `status:todo`/`status:in-progress` labels, everything else falls to
+Backlog). A milestone-scoped sprint nav (`‹ Sprint N ›`, driven by `GET
+/api/board` which returns both `issues` and `milestones`) lets you flip
+between sprints; Backlog always shows every backlog-status issue regardless
+of milestone, the other four columns scope to whichever milestone is
+selected. Dragging a card calls `PATCH /api/board/{number}` (`{ status,
+milestoneNumber? }`) — optimistic move, snaps back with an inline error on
+failure, no retries; `milestoneNumber` is sent when dragging a
+milestone-less backlog card into a sprint-scoped column, so it doesn't
+vanish (belongs to neither the old column nor the new one otherwise).
+Clicking a card opens `TicketDetailModal.tsx`, a plain hand-rolled
+backdrop+dialog (no library) showing full read-only issue detail.
+
+**Copilot hand-off**: a "Do with Copilot" action on Todo/In-Progress cards
+(`TicketCard.tsx`) calls `POST /api/board/{number}/copilot`, which assigns
+GitHub's Copilot coding agent (`assignCopilotToIssue()` — additive
+`POST .../assignees` with `COPILOT_ASSIGNEE_LOGIN = "copilot-swe-agent"`)
+and moves the card to In Progress. There's no webhook/notification for the
+PR Copilot later opens; cards instead call `GET
+/api/board/{number}/pull-request` (`getLinkedPullRequest()`, reads the
+issue's `/timeline` for a `cross-referenced` event) to show a best-effort
+open/merged/closed PR badge — a miss just means no PR yet, not an error.
+
+**Chat assistant** (`/chat`, `ChatThread.tsx` + `POST /api/chat` +
+`src/lib/llm/chat.ts`) is a read-only Q&A surface over the live board — no
+GitHub writes possible. Each request re-fetches `listAllIssues` +
+`computeBoardStatus` fresh (no caching), builds a system prompt listing
+every issue (`#N [status] title — labels — url`), and answers with one
+non-streamed `client.responses.create` call (model `gpt-5.4-mini`) appending
+the passed message history. UI is a ChatGPT-style hero-then-thread layout.
+
+**Label consolidation**: the original `type:feature`/`type:bug` synthetic
+labels are gone. `config.ts` now exports `BUCKET_LABEL: Record<Bucket,
+string> = { feature: "enhancement", bug: "bug" }` — confirm applies GitHub's
+own default labels instead, since they were already the more heavily-used
+labels on the target repo. `src/lib/labels.ts`'s `TYPE_LABEL_PATTERN`
+(used by `TicketCard`/board rendering to pick out the "type" pill) was
+updated to match `bug`/`enhancement` instead of `feature`/`bug`.
+
+**Duplicate detection**: `IssueClassification` gained a `duplicate_of:
+number | null` field (LLM-flagged, within the same batch). A new pure
+module, `src/lib/allocation/consolidate.ts` (`consolidateDuplicates()`),
+resolves `duplicate_of` chains to their root (defending against
+self-references, out-of-batch references, and cycles — a cycle breaks
+deterministically at the lowest issue number) and excludes every non-root
+duplicate before `allocate()` runs. Excluded pairs are surfaced as
+`ConsolidatedEntry[]` on `PreviewResult`/`SprintRunResult` and shown in the
+UI as a "N duplicate issues excluded" note. New test file:
+`src/lib/allocation/consolidate.test.ts`.
+
+**Milestones get a due date now**: `createMilestone()`
+(`src/lib/github/milestones.ts`) takes an optional `dueOn`; confirm computes
+it as `now + 14 days` (`SPRINT_LENGTH_DAYS = 14` in
+`api/run/confirm/route.ts`) — a hardcoded sprint-length assumption, not
+user-configurable. `listMilestones()` (new) backs both the Kanban board's
+sprint nav and `GET /api/milestones` (used by the sprint-planning page to
+compute the next sprint's default number/title).
+
+**Team preferences → per-run sprint focus**: a `src/app/settings/` page
+persisting team preferences to `localStorage` existed briefly and was
+removed (commit "Replace settings page with a per-run sprint-focus field")
+— `src/app/settings/` and `src/lib/settings/` no longer exist. In its place,
+the sprint-planning page has a plain `<textarea>` ("this sprint's focus,
+optional") whose value is sent once in the `/api/run/preview` request body
+and folded into `buildClassificationPrompt()`'s system prompt for that run
+only. `classifyIssues()`'s signature grew a second, optional `sprintFocus`
+parameter to carry it through.
+
+**Current top-level file map** (supersedes the "Directory layout" section
+above, which now reflects the original Approach-A design, not this):
+
+```
+src/
+  types.ts, config.ts                    # shared contracts + constants (updated — see above)
+  lib/
+    github/ client.ts, issues.ts, milestones.ts
+    llm/    prompt.ts, classify.ts, chat.ts
+    allocation/ allocate.ts, consolidate.ts (+ .test.ts each)
+    board/  status.ts (+ .test.ts)
+    stream/ ndjson.ts
+    pipeline/ stream.ts
+  app/
+    page.tsx                             # Kanban board (default page)
+    sprint-planning/page.tsx             # preview -> review -> confirm flow
+    chat/page.tsx                        # chat assistant
+    layout.tsx                           # Nav (left sidebar) + main content
+    api/
+      board/route.ts                     # GET issues+milestones for the board
+      board/[number]/route.ts            # PATCH move a card
+      board/[number]/copilot/route.ts    # POST hand off to Copilot
+      board/[number]/pull-request/route.ts # GET linked PR lookup
+      issues/route.ts                    # GET open issues (lighter than /api/board)
+      milestones/route.ts                # GET all milestones
+      run/preview/route.ts, run/confirm/route.ts
+      chat/route.ts
+  components/
+    Nav.tsx, KanbanBoard.tsx, TicketCard.tsx, TicketDetailModal.tsx
+    RunButton.tsx, ActivityLog.tsx, ReviewPanel.tsx, ResultView.tsx
+    ChatThread.tsx
+    BacklogList.tsx                      # dead code, not imported — see note above
+```
+
 ## Dependency graph
 
 ```
@@ -479,23 +593,26 @@ catching errors per stage into `SprintRunResult.error`.
 
 1. `.env.local` has valid `GITHUB_PAT` (Issues read/write scope), `GITHUB_OWNER`,
    `GITHUB_REPO`, `OPENAI_API_KEY`.
-2. Load the page: backlog overview loads and lists every open issue in the
-   target repo (matches the GitHub UI's open-issues count), idle state shows
-   "Preview sprint", no console errors.
-3. Click "Preview sprint": activity log appears and streams progress lines
-   live (fetch → classify → consolidate → allocate), ending with a review
-   screen — no GitHub writes have happened yet at this point (verify no new
-   Milestone exists).
+2. Load `/` (Kanban board): every open/closed issue lands in the right
+   column per `computeBoardStatus()`, the sprint nav shows the latest
+   milestone by default, no console errors.
+3. On Sprint Planning, click "Preview sprint": activity log appears and
+   streams progress lines live (fetch → classify → consolidate → allocate),
+   ending with a review screen — no GitHub writes have happened yet at this
+   point (verify no new Milestone exists).
 4. In the review screen, toggle an issue in/out: the point total and issue
    count update immediately, no network request fires.
 5. Click "Cancel": returns to idle, no GitHub writes made.
-6. Preview again, edit the milestone title, leave the default toggles, click
-   "Confirm & write to GitHub": activity log resumes streaming (milestone →
-   per-issue assign/label), ending in the result view.
-7. A new Milestone appears on the target repo with the edited title.
+6. Preview again, optionally fill in "this sprint's focus", edit the
+   milestone title, leave the default toggles, click "Confirm & write to
+   GitHub": activity log resumes streaming (milestone → per-issue
+   assign/label), ending in the result view.
+7. A new Milestone appears on the target repo with the edited title and a
+   due date ~14 days out.
 8. Selected issues are assigned to that milestone on GitHub (not just in the UI).
-9. Each selected issue has `agent-drafted` + correct `type: feature`/`type: bug`
-   labels, and pre-existing labels on those issues weren't removed.
+9. Each selected issue has `agent-drafted`, `status:todo`, and the correct
+   `BUCKET_LABEL` (`enhancement` for feature, `bug` for bug) applied, and
+   pre-existing labels on those issues weren't removed.
 10. UI totals (feature/bug points used, total, capacity) match a hand-check
     against the toggled selection and the 70/30 split.
 11. Re-run the flow against the same repo (issues already labeled/milestoned)
@@ -503,18 +620,37 @@ catching errors per stage into `SprintRunResult.error`.
 12. Force one failure path: temporarily use an invalid `OPENAI_API_KEY`,
     confirm the activity log/error view shows a plain error with
     `stage: "classify"`, doesn't hang, and no Milestone was created.
+13. Back on the Kanban board, drag a card between columns: it moves
+    optimistically, the corresponding label/state change lands on GitHub,
+    and dragging a milestone-less Backlog card into a sprint-scoped column
+    assigns it to that milestone.
+14. Click "Do with Copilot" on a Todo/In-Progress card: the issue gets
+    assigned to `copilot-swe-agent` on GitHub and the card moves to In
+    Progress; once Copilot opens a PR, the card's PR badge reflects it on
+    next load (best-effort, no push notification).
+15. On `/chat`, ask a question about the current backlog/board (e.g. "what's
+    in progress right now?"): the answer matches actual GitHub state, and no
+    GitHub write happens as a side effect.
 
 ## Critical files
 
-- `sprint-copilot/src/types.ts`
+- `sprint-copilot/src/types.ts` — shared contracts, everyone codes against this
+- `sprint-copilot/src/config.ts` — constants incl. `BUCKET_LABEL`, `COPILOT_ASSIGNEE_LOGIN`
 - `sprint-copilot/src/lib/github/issues.ts`
-- `sprint-copilot/src/lib/llm/classify.ts`
-- `sprint-copilot/src/lib/allocation/allocate.ts`
+- `sprint-copilot/src/lib/github/milestones.ts`
+- `sprint-copilot/src/lib/llm/classify.ts`, `prompt.ts`
+- `sprint-copilot/src/lib/llm/chat.ts`
+- `sprint-copilot/src/lib/allocation/allocate.ts`, `consolidate.ts`
+- `sprint-copilot/src/lib/board/status.ts` — single source of truth for the kanban column mapping
 - `sprint-copilot/src/lib/stream/ndjson.ts`
 - `sprint-copilot/src/lib/pipeline/stream.ts`
 - `sprint-copilot/src/app/api/run/preview/route.ts`
 - `sprint-copilot/src/app/api/run/confirm/route.ts`
-- `sprint-copilot/src/app/api/issues/route.ts`
-- `sprint-copilot/src/components/BacklogList.tsx`
-- `sprint-copilot/src/components/ActivityLog.tsx`
-- `sprint-copilot/src/components/ReviewPanel.tsx`
+- `sprint-copilot/src/app/api/board/route.ts`, `board/[number]/route.ts`
+- `sprint-copilot/src/app/api/board/[number]/copilot/route.ts`, `pull-request/route.ts`
+- `sprint-copilot/src/app/api/chat/route.ts`
+- `sprint-copilot/src/components/KanbanBoard.tsx`, `TicketCard.tsx`, `TicketDetailModal.tsx`
+- `sprint-copilot/src/components/ActivityLog.tsx`, `ReviewPanel.tsx`
+- `sprint-copilot/src/components/ChatThread.tsx`
+- `sprint-copilot/src/components/BacklogList.tsx` — **dead code, not imported anywhere** — don't
+  extend it; it's left over from the pre-Kanban design (see the Kanban addendum above)
