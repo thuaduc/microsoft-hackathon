@@ -622,9 +622,9 @@ catching errors per stage into `SprintRunResult.error`.
 7. A new Milestone appears on the target repo with the edited title and a
    due date ~14 days out.
 8. Selected issues are assigned to that milestone on GitHub (not just in the UI).
-9. Each selected issue has `agent-drafted`, `status:todo`, and the correct
-   `BUCKET_LABEL` (`enhancement` for feature, `bug` for bug) applied, and
-   pre-existing labels on those issues weren't removed.
+9. Each selected issue has `status:todo` and the correct `BUCKET_LABEL`
+   (`enhancement` for feature, `bug` for bug) applied — no `agent-drafted`
+   label — and pre-existing labels on those issues weren't removed.
 10. UI totals (feature/bug points used, total, capacity) match a hand-check
     against the toggled selection and the 70/30 split.
 11. Re-run the flow against the same repo (issues already labeled/milestoned)

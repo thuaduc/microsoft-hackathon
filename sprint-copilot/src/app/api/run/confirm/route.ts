@@ -72,7 +72,6 @@ export async function POST(request: NextRequest) {
 
       try {
         await applyLabels(owner, repo, issue.issueNumber, [
-          "agent-drafted",
           BUCKET_LABEL[issue.bucket],
           STATUS_TODO_LABEL,
         ]);

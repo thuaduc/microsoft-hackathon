@@ -64,8 +64,10 @@ read it before touching any track.
      `config.ts` — GitHub's own `enhancement`/`bug`, **not** a synthetic
      `type:feature`/`type:bug` scheme (that was consolidated away; see
      `src/lib/labels.ts`'s `TYPE_LABEL_PATTERN`). Confirm also applies
-     `agent-drafted` and `STATUS_TODO_LABEL` (`"status:todo"`) to every
-     written issue.
+     `STATUS_TODO_LABEL` (`"status:todo"`) to every written issue. There is
+     **no** `agent-drafted` label — it was removed (from both the code and
+     every already-labeled issue in the target repo) as an unneeded marker;
+     don't re-add it without an explicit ask.
    - Copilot hand-off: **do not use the plain REST `POST
      .../issues/{issue_number}/assignees` endpoint** — verified against a
      live repo that it returns 201 but silently drops the
