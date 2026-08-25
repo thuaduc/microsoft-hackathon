@@ -71,9 +71,29 @@ test("non-backlog column excludes an issue milestoned to a different sprint", ()
   );
 });
 
-test("a milestone-less issue in a non-backlog status still shows, regardless of which sprint is selected — otherwise it's invisible in every view", () => {
+test("a milestone-less issue in todo/in_progress still shows, regardless of which sprint is selected — otherwise it's invisible in every view", () => {
   assert.equal(
     isIssueInColumn({ status: "in_progress", milestone: null }, "in_progress", 7),
+    true
+  );
+  assert.equal(isIssueInColumn({ status: "todo", milestone: null }, "todo", 7), true);
+});
+
+test("a milestone-less done/cancelled issue does NOT get the same exception — it never shows in a sprint-scoped view", () => {
+  assert.equal(isIssueInColumn({ status: "done", milestone: null }, "done", 7), false);
+  assert.equal(isIssueInColumn({ status: "cancelled", milestone: null }, "cancelled", 7), false);
+});
+
+test("a done/cancelled issue milestoned to a different sprint is excluded, not shown everywhere", () => {
+  assert.equal(
+    isIssueInColumn({ status: "done", milestone: { number: 6 } }, "done", 7),
+    false
+  );
+});
+
+test("a done/cancelled issue milestoned to the selected sprint still shows", () => {
+  assert.equal(
+    isIssueInColumn({ status: "cancelled", milestone: { number: 7 } }, "cancelled", 7),
     true
   );
 });

@@ -19,11 +19,15 @@ type ColumnMatchInput = { status: BoardStatus; milestone: { number: number } | n
 
 // Which sprint-nav column an issue belongs in, given the currently
 // selected milestone. Backlog always shows regardless of milestone (it's
-// the pool sprints get built from). The other columns scope to whichever
-// sprint is selected — except a milestone-less issue in one of those
-// non-backlog statuses, which would otherwise be invisible in *every*
-// sprint view (its milestone can never equal a specific selected number),
-// so it shows regardless of which sprint you're looking at instead.
+// the pool sprints get built from). Todo/In Progress scope to whichever
+// sprint is selected — except a milestone-less issue in one of those two,
+// which would otherwise be invisible in *every* sprint view (its milestone
+// can never equal a specific selected number), so it shows regardless of
+// which sprint you're looking at instead. Done/Cancel do NOT get that
+// exception: a closed issue with no milestone isn't "still active" the way
+// an unmilestoned todo/in-progress issue is, so it only shows under the
+// sprint it actually belongs to — never shows at all if it was never
+// milestoned, rather than cluttering every sprint's Done/Cancel column.
 export function isIssueInColumn(
   issue: ColumnMatchInput,
   columnKey: BoardStatus,
@@ -31,5 +35,8 @@ export function isIssueInColumn(
 ): boolean {
   if (issue.status !== columnKey) return false;
   if (columnKey === "backlog" || selectedMilestone === null) return true;
+  if (columnKey === "done" || columnKey === "cancelled") {
+    return issue.milestone !== null && issue.milestone.number === selectedMilestone;
+  }
   return issue.milestone === null || issue.milestone.number === selectedMilestone;
 }

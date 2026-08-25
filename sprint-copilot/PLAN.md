@@ -943,6 +943,36 @@ underneath is untouched. `npx tsc --noEmit` clean, all 33 tests pass
 (including the two `consolidate.test.ts` assertions updated to the new
 nested `ConsolidatedEntry` shape).
 
+### Addendum — Done/Cancel no longer bleed across sprints
+
+User report: "the done and cancelled ticket shouldn't show in other sprint."
+
+**Root cause**: the #28 fix (see the sprint-focus/Kanban addendum above)
+made `isIssueInColumn()` treat a milestone-less issue as an automatic match
+for *any* non-backlog status, so it'd show regardless of which sprint was
+selected. That's correct for Todo/In Progress — an unmilestoned issue still
+being worked on genuinely should be visible no matter which sprint you're
+looking at, or it becomes invisible everywhere (the original #28 bug). It's
+wrong for Done/Cancel: a closed issue that was never milestoned isn't
+"still active" the same way, so the exception meant closed issues piled up
+in *every* sprint's Done/Cancel column instead of just the one they
+actually belonged to.
+
+**Fix**: `isIssueInColumn()` (`src/lib/board/status.ts`) now branches —
+Todo/In Progress keep the milestone-less-always-shows exception; Done/Cancel
+require an exact `issue.milestone.number === selectedMilestone` match
+(a `null` milestone excludes the issue from every sprint-scoped Done/Cancel
+view, rather than including it in all of them). Four new cases in
+`status.test.ts` cover: milestone-less todo/in_progress still shows
+(unchanged behavior), milestone-less done/cancelled does NOT show, a
+done/cancelled issue milestoned to a different sprint is excluded, and one
+milestoned to the selected sprint still shows.
+
+Verified live: Sprint 2 correctly shows its own 3 Done + 1 Cancel issues;
+Sprint 1 shows its own 7 Done + 0 Cancel, with no overlap between sprints'
+Done/Cancel columns (previously the same milestone-less closed issues would
+have appeared in both).
+
 ## Critical files
 
 - `sprint-copilot/src/types.ts` — shared contracts, everyone codes against this

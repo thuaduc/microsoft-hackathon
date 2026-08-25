@@ -274,14 +274,26 @@ read it before touching any track.
    milestone-scoped sprint nav (‹ Sprint N ›): Backlog always shows every
    issue with backlog status regardless of milestone; Todo/In
    Progress/Done/Cancel scope to whichever milestone is selected — **except**
-   a milestone-less issue in one of those statuses, which shows regardless
+   a milestone-less issue in **Todo or In Progress**, which shows regardless
    of which sprint is selected. That exception is load-bearing, not an
    edge-case nicety: without it, an in-progress (etc.) issue with no
    milestone can never equal a specific selected milestone number, so it's
    invisible in *every* sprint view, permanently — this was a real bug,
    found and fixed live (issue #28, confirmed via `/api/board` before the
    fix and the rendered board after). Don't tighten `isIssueInColumn()`
-   back to a plain `===` check.
+   back to a plain `===` check for Todo/In Progress.
+   **Done/Cancel deliberately do NOT get that exception** — a milestone-less
+   closed issue matches no sprint at all, rather than showing in every
+   sprint's Done/Cancel column. Found live (user report: "the done and
+   cancelled ticket shouldn't show in other sprint") — the original #28 fix
+   applied the milestone-less exception to every non-backlog status, which
+   meant a closed issue that (for whatever reason) never got milestoned
+   showed up in Sprint 1's Done column, Sprint 2's, Sprint 3's, all of them
+   at once. A closed issue isn't "still active" the way an unmilestoned
+   todo/in-progress one is, so `isIssueInColumn()` now requires an exact
+   milestone match for `done`/`cancelled` — see the status/column-matching
+   logic and its tests in `status.ts`/`status.test.ts` before changing this
+   again; don't collapse the two branches back into one shared exception.
    Dragging a card writes straight to GitHub via `PATCH /api/board/{number}`
    (optionally also assigning it to the currently-viewed milestone if it
    didn't have one) — optimistic UI update, snaps back with an inline error
