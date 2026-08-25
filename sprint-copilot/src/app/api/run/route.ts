@@ -21,10 +21,9 @@ function message(err: unknown): string {
 // are recorded on that issue's WriteOutcome rather than aborting the rest —
 // partial writes are an acceptable, visible failure state (see CLAUDE.md).
 export async function POST() {
-  const { owner, repo } = getTargetRepo();
-
-  let issues;
+  let owner: string, repo: string, issues;
   try {
+    ({ owner, repo } = getTargetRepo());
     issues = await listOpenIssues(owner, repo);
   } catch (err) {
     return NextResponse.json<SprintRunResult>({
