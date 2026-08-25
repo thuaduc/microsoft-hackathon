@@ -700,6 +700,52 @@ real `app/api/run/route.ts`, wiring: `listOpenIssues` → `classifyIssues` →
 (`assignIssueToMilestone`, `applyLabels`, and `createSubIssue` for epics),
 catching errors per stage into `SprintRunResult.error`.
 
+### Addendum — sprint focus actually drives selection, plus a real Kanban rendering bug fix
+
+Two fixes that landed together, both from live-testing "focus on LLM
+features and fixing bugs" against real seeded issues.
+
+**Focus was a no-op for selection, only for point estimates.** The user
+reported new LLM-feature issues weren't getting selected despite matching
+the sprint focus. Root cause: `sprintFocus` only ever reached the
+classification prompt, which could shift point/urgency judgment, but
+`allocate()` had zero concept of focus — pure points-ascending sort.
+Fixed by adding `IssueClassification.matches_sprint_focus: boolean` (LLM
+sets it per issue, true only when a focus was given and the issue clearly
+relates to it) and changing `allocate.ts`'s sort to
+`sortByFocusThenPointsThenNumber` — focus-matches sort first within each
+bucket, then points ascending, then issue number, same as before. New
+`allocate.test.ts` case constructs two issues whose points sum to more
+than total capacity (so at most one can ever be selected, via bucket-fill
+*or* top-off) specifically to isolate "does sort order actually flip the
+outcome" from "does everything eventually fit somewhere via top-off" —
+the latter was a real trap during development, see the test's comment.
+Verified live: a focus-matching 3-pt issue got selected in a run where it
+wouldn't have otherwise. Also verified the *limit* of the fix: guaranteed
+carry-over issues (2d) still take priority and consume budget before the
+focus sort runs, so a nearly-full carry-over queue can genuinely starve
+focus-matching issues — that's correct layered priority (guaranteed >
+focus > points), not a residual bug.
+
+**Kanban board: an in-progress issue with no milestone was permanently
+invisible.** Found by the user noticing a real repo issue (#28) missing
+from the board. `isIssueInColumn()`'s non-backlog check was a strict
+`issue.milestone?.number === selectedMilestone` — a milestone-less issue's
+`milestone` is `null`, which can never equal any specific selected
+milestone number, so the issue matched *no* column in *any* sprint view
+(not Backlog, since its status wasn't backlog; not its actual status
+column, since the milestone check always failed). Fixed by treating
+`milestone === null` as an automatic match in `isIssueInColumn()`
+(`src/lib/board/status.ts` — the function was inline in `KanbanBoard.tsx`
+before this, moved out alongside `computeBoardStatus` so it's a tested
+pure function like the rest of the board-status logic, not
+component-local). New tests in `status.test.ts` cover backlog-always-shows,
+exact milestone match, mismatch exclusion, the milestone-less-still-shows
+case, and the no-milestones-exist-yet fallback. Verified live: `/api/board`
+showed `#28`'s real state (`in_progress`, `milestone: null`) before the
+fix, and the rendered board showed it appear in the In Progress column
+after.
+
 ## Secrets & human verification (do these manually before/alongside Track A and B)
 
 - **GitHub PAT**: create a fine-grained PAT scoped to the target repo with Issues
@@ -792,6 +838,16 @@ catching errors per stage into `SprintRunResult.error`.
     different words: the "Duplicates excluded" box shows the excluded issue
     linked to the canonical one it duplicates, and the excluded issue does
     not appear in any label column (it never competed for capacity).
+19. Set a sprint focus (e.g. "focus on LLM features"), preview against a
+    repo with at least one small issue that clearly matches it competing
+    against similarly-small non-matching issues: the matching issue shows a
+    "focus" badge and gets selected ahead of a non-matching issue of equal
+    or smaller size. Understand this can still lose to a full carry-over
+    queue — that's expected, not a failure of this check.
+20. On the Kanban board, confirm an issue with a non-backlog status
+    (todo/in_progress/done/cancelled) and **no milestone assigned** appears
+    in its status column regardless of which sprint is selected in the nav
+    — it should never be invisible.
 
 ## Critical files
 
