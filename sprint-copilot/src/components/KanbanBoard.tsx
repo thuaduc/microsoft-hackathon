@@ -182,6 +182,26 @@ export default function KanbanBoard() {
   return (
     <div className={styles.board}>
       <div className={styles.toolbar}>
+        <div className={styles.searchBox}>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search issues…"
+            className={styles.searchInput}
+            aria-label="Search issues"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className={styles.searchClear}
+              onClick={() => setSearchQuery("")}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
         <div className={styles.sprintNav}>
           <button
             type="button"
@@ -204,26 +224,6 @@ export default function KanbanBoard() {
           >
             ›
           </button>
-        </div>
-        <div className={styles.searchBox}>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search issues…"
-            className={styles.searchInput}
-            aria-label="Search issues"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className={styles.searchClear}
-              onClick={() => setSearchQuery("")}
-              aria-label="Clear search"
-            >
-              ×
-            </button>
-          )}
         </div>
       </div>
       {moveError && <p className={styles.moveError}>{moveError}</p>}
