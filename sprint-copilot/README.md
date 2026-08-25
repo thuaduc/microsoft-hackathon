@@ -8,8 +8,8 @@ story points, near-duplicates), and runs a deterministic allocation algorithm to
 balanced sprint against a fixed team capacity. You review the proposed sprint — toggling issues
 in or out, adjusting the milestone title — before anything is written back to GitHub as a real
 Milestone with labels. The app also includes a Kanban board for the live backlog (drag a card to
-change its status on GitHub) and a chat assistant for asking questions about the current
-backlog/board state.
+change its status on GitHub), a sprint history page to review prior milestone outcomes, and a chat
+assistant for asking questions about the current backlog/board state.
 
 See `CLAUDE.md` and `PLAN.md` in this directory for the full design and implementation details.
 
