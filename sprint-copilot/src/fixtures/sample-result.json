@@ -1,0 +1,79 @@
+{
+  "ok": true,
+  "milestone": {
+    "number": 7,
+    "html_url": "https://github.com/example/demo-repo/milestone/7",
+    "title": "Sprint 2026-08-25"
+  },
+  "writeOutcomes": [
+    {
+      "issueNumber": 101,
+      "bucket": "bug",
+      "milestoneAssigned": true,
+      "labelsApplied": true,
+      "subIssuesRequested": 0,
+      "subIssuesCreated": 0,
+      "errors": []
+    },
+    {
+      "issueNumber": 106,
+      "bucket": "bug",
+      "milestoneAssigned": true,
+      "labelsApplied": true,
+      "subIssuesRequested": 0,
+      "subIssuesCreated": 0,
+      "errors": []
+    },
+    {
+      "issueNumber": 108,
+      "bucket": "bug",
+      "milestoneAssigned": true,
+      "labelsApplied": true,
+      "subIssuesRequested": 0,
+      "subIssuesCreated": 0,
+      "errors": []
+    },
+    {
+      "issueNumber": 102,
+      "bucket": "feature",
+      "milestoneAssigned": true,
+      "labelsApplied": true,
+      "subIssuesRequested": 0,
+      "subIssuesCreated": 0,
+      "errors": []
+    },
+    {
+      "issueNumber": 105,
+      "bucket": "feature",
+      "milestoneAssigned": true,
+      "labelsApplied": true,
+      "subIssuesRequested": 0,
+      "subIssuesCreated": 0,
+      "errors": []
+    },
+    {
+      "issueNumber": 109,
+      "bucket": "feature",
+      "milestoneAssigned": true,
+      "labelsApplied": true,
+      "subIssuesRequested": 0,
+      "subIssuesCreated": 0,
+      "errors": []
+    },
+    {
+      "issueNumber": 107,
+      "bucket": "feature",
+      "milestoneAssigned": true,
+      "labelsApplied": true,
+      "subIssuesRequested": 3,
+      "subIssuesCreated": 3,
+      "errors": []
+    }
+  ],
+  "totals": {
+    "featurePointsUsed": 12,
+    "bugPointsUsed": 5,
+    "totalPointsUsed": 17,
+    "capacity": 18
+  }
+}

@@ -1,0 +1,92 @@
+[
+  {
+    "number": 101,
+    "id": 2001101,
+    "title": "Fix crash when uploading avatar larger than 5MB",
+    "body": "Steps to reproduce: upload a >5MB PNG in profile settings. App throws an unhandled exception and the settings page goes blank. Expected: a friendly validation error instead.",
+    "html_url": "https://github.com/example/demo-repo/issues/101",
+    "labels": ["bug"],
+    "state": "open"
+  },
+  {
+    "number": 102,
+    "id": 2001102,
+    "title": "Add dark mode toggle to settings page",
+    "body": "Users have asked for a dark mode option. Add a toggle in Settings > Appearance that switches the app theme and persists the choice per user.",
+    "html_url": "https://github.com/example/demo-repo/issues/102",
+    "labels": ["enhancement"],
+    "state": "open"
+  },
+  {
+    "number": 103,
+    "id": 2001103,
+    "title": "Revamp onboarding flow for new users",
+    "body": "The current onboarding is a single long form. We want to break this into a multi-step wizard: account basics, team invite, first project setup, and a guided tour. This touches signup, the dashboard empty state, and email notifications.",
+    "html_url": "https://github.com/example/demo-repo/issues/103",
+    "labels": ["enhancement"],
+    "state": "open"
+  },
+  {
+    "number": 104,
+    "id": 2001104,
+    "title": "Search results paginate incorrectly on page 2+",
+    "body": "Clicking 'next page' on search results shows duplicate items from page 1 instead of new results. Looks like the offset param isn't being applied server-side.",
+    "html_url": "https://github.com/example/demo-repo/issues/104",
+    "labels": ["bug", "backend"],
+    "state": "open"
+  },
+  {
+    "number": 105,
+    "id": 2001105,
+    "title": "Add CSV export for billing history",
+    "body": "Finance team wants to download billing history as CSV from the billing page, including invoice date, amount, and status.",
+    "html_url": "https://github.com/example/demo-repo/issues/105",
+    "labels": ["enhancement"],
+    "state": "open"
+  },
+  {
+    "number": 106,
+    "id": 2001106,
+    "title": "Typo in password reset email subject line",
+    "body": "Subject reads 'Reset Yor Password' — should be 'Reset Your Password'.",
+    "html_url": "https://github.com/example/demo-repo/issues/106",
+    "labels": ["bug"],
+    "state": "open"
+  },
+  {
+    "number": 107,
+    "id": 2001107,
+    "title": "Build notifications center (in-app + email digest)",
+    "body": "We need a unified notifications system: an in-app notification bell with unread counts, a notifications feed page, per-category preferences, and a daily email digest. Likely needs a new data model, background job for digests, and new UI components.",
+    "html_url": "https://github.com/example/demo-repo/issues/107",
+    "labels": ["enhancement"],
+    "state": "open"
+  },
+  {
+    "number": 108,
+    "id": 2001108,
+    "title": "API returns 500 when filtering by empty tag list",
+    "body": "GET /api/items?tags= returns a 500 instead of an empty result set or a 400. Should validate the query param.",
+    "html_url": "https://github.com/example/demo-repo/issues/108",
+    "labels": ["bug", "api"],
+    "state": "open"
+  },
+  {
+    "number": 109,
+    "id": 2001109,
+    "title": "Add keyboard shortcut for quick search (Cmd+K)",
+    "body": "Add a global Cmd+K / Ctrl+K shortcut that opens a quick search modal, similar to Linear/GitHub.",
+    "html_url": "https://github.com/example/demo-repo/issues/109",
+    "labels": ["enhancement"],
+    "state": "open"
+  },
+  {
+    "number": 110,
+    "id": 2001110,
+    "title": "Memory leak in dashboard websocket connection",
+    "body": "Leaving the dashboard open for a few hours causes memory usage to climb steadily. Suspect the websocket reconnect logic isn't cleaning up old listeners.",
+    "html_url": "https://github.com/example/demo-repo/issues/110",
+    "labels": ["bug", "performance"],
+    "state": "open"
+  }
+]
