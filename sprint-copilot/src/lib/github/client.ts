@@ -46,6 +46,28 @@ export async function githubRequest<T>(path: string, init: RequestInit = {}): Pr
   return body as T;
 }
 
+// GraphQL errors come back as HTTP 200 with an `errors` array, not a
+// non-2xx status — githubRequest's status check alone won't catch them.
+export async function githubGraphQL<T>(
+  query: string,
+  variables?: Record<string, unknown>,
+  extraHeaders?: Record<string, string>
+): Promise<T> {
+  const body = await githubRequest<{ data?: T; errors?: Array<{ message: string }> }>("/graphql", {
+    method: "POST",
+    headers: extraHeaders,
+    body: JSON.stringify({ query, variables }),
+  });
+  if (body.errors?.length) {
+    throw new GitHubApiError(
+      200,
+      body.errors,
+      `GitHub GraphQL error: ${body.errors.map((e) => e.message).join("; ")}`
+    );
+  }
+  return body.data as T;
+}
+
 // Extracts the "next" URL from a GitHub Link response header, e.g.
 // `<https://api.github.com/...&page=2>; rel="next", <...>; rel="last"`.
 export function parseNextLink(linkHeader: string | null): string | null {

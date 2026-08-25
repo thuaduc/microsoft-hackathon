@@ -1,6 +1,6 @@
 import { COPILOT_ASSIGNEE_LOGIN, STATUS_IN_PROGRESS_LABEL, STATUS_TODO_LABEL } from "@/config";
 import type { BoardStatus, GitHubIssue, LinkedPullRequest } from "@/types";
-import { GitHubApiError, githubFetch, githubRequest, parseNextLink } from "./client";
+import { GitHubApiError, githubFetch, githubGraphQL, githubRequest, parseNextLink } from "./client";
 
 interface RawIssue {
   number: number;
@@ -154,19 +154,68 @@ export async function setIssueBoardStatus(
   }
 }
 
-// Hands the issue to GitHub's Copilot coding agent — additive, like
-// applyLabels, so any existing human assignees are left in place. GitHub
-// opens the PR on its own from here; see getLinkedPullRequest for how that
-// PR later shows back up on the card.
+const SUGGESTED_ASSIGNEES_QUERY = `
+  query($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+      suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 10) {
+        nodes { __typename ... on Bot { id login } }
+      }
+      issue(number: $number) { id }
+    }
+  }
+`;
+
+const ADD_ASSIGNEE_MUTATION = `
+  mutation($issueId: ID!, $actorId: ID!) {
+    addAssigneesToAssignable(input: { assignableId: $issueId, assigneeIds: [$actorId] }) {
+      clientMutationId
+    }
+  }
+`;
+
+interface SuggestedActorsResult {
+  repository: {
+    suggestedActors: { nodes: Array<{ __typename: string; id?: string; login?: string }> };
+    issue: { id: string } | null;
+  };
+}
+
+// Hands the issue to GitHub's Copilot coding agent. This is NOT the plain
+// REST `POST .../assignees` call other assignees would use — verified
+// against a live repo that the REST endpoint returns 201 but silently
+// drops the copilot-swe-agent login (empty assignees, no error). The
+// documented, actually-working mechanism is the GraphQL
+// addAssigneesToAssignable mutation with the bot's actor id and the
+// `GraphQL-Features: issues_copilot_assignment_api_support` header — see
+// https://github.blog/changelog/2025-12-03-assign-issues-to-copilot-using-the-api/
 export async function assignCopilotToIssue(
   owner: string,
   repo: string,
   issueNumber: number
 ): Promise<void> {
-  await githubRequest(`/repos/${owner}/${repo}/issues/${issueNumber}/assignees`, {
-    method: "POST",
-    body: JSON.stringify({ assignees: [COPILOT_ASSIGNEE_LOGIN] }),
+  const { repository } = await githubGraphQL<SuggestedActorsResult>(SUGGESTED_ASSIGNEES_QUERY, {
+    owner,
+    repo,
+    number: issueNumber,
   });
+
+  const copilot = repository.suggestedActors.nodes.find(
+    (actor) => actor.__typename === "Bot" && actor.login === COPILOT_ASSIGNEE_LOGIN
+  );
+  if (!copilot?.id) {
+    throw new Error(
+      "Copilot coding agent isn't assignable on this repo — check it's enabled under repo Settings > Copilot."
+    );
+  }
+  if (!repository.issue?.id) {
+    throw new Error(`Issue #${issueNumber} not found.`);
+  }
+
+  await githubGraphQL(
+    ADD_ASSIGNEE_MUTATION,
+    { issueId: repository.issue.id, actorId: copilot.id },
+    { "GraphQL-Features": "issues_copilot_assignment_api_support" }
+  );
 }
 
 interface RawTimelineEvent {
