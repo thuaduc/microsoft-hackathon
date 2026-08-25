@@ -131,6 +131,12 @@ export default function ResultView({ result }: { result: SprintRunResult }) {
                 >
                   {o.labelsApplied ? <CheckIcon /> : <DashIcon />} Labels
                 </span>
+                <span
+                  className={`${styles.status} ${o.assigneeApplied ? styles.statusDone : ""}`}
+                  title="Assignee applied"
+                >
+                  {o.assigneeApplied ? <CheckIcon /> : <DashIcon />} Assignee
+                </span>
               </div>
               {o.errors.length > 0 && (
                 <p className={styles.itemError}>{o.errors.join(" · ")}</p>

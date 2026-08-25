@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sprint Co-Pilot",
+  title: "Compass",
   description: "Plan the next sprint in one click.",
 };
 

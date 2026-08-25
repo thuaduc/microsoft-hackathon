@@ -1,4 +1,8 @@
-# Sprint Co-Pilot — Implementation Plan
+# Compass — Implementation Plan
+
+**Renamed from "Sprint Co-Pilot" to "Compass" post-build** — cosmetic only, no
+functional change; some section text below still says "Sprint Co-Pilot" as
+history.
 
 ## Context
 

@@ -1,9 +1,9 @@
-# Sprint Co-Pilot
+# Compass
 
 An AI-assisted sprint planning tool for GitHub Issues, built for the Microsoft Hackathon 2026
 challenge "Collaboration using GitHub Planning & Tracking Tools in the Agentic Age."
 
-Sprint Co-Pilot reads a repo's open issues, uses an LLM to classify each one (feature or bug,
+Compass reads a repo's open issues, uses an LLM to classify each one (feature or bug,
 story points, near-duplicates), and runs a deterministic allocation algorithm to propose a
 balanced sprint against a fixed team capacity. You review the proposed sprint — toggling issues
 in or out, adjusting the milestone title — before anything is written back to GitHub as a real

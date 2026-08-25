@@ -15,7 +15,7 @@ export default function Nav() {
 
   return (
     <nav className={styles.nav}>
-      <span className={styles.brand}>Sprint Co-Pilot</span>
+      <span className={styles.brand}>Compass</span>
       <div className={styles.links}>
         {LINKS.map((link) => (
           <Link

@@ -257,6 +257,28 @@ export async function getLinkedPullRequest(
   return latest;
 }
 
+// The PAT's own login — used to self-assign newly-written sprint issues,
+// since (for now) it's a solo project and there's no team roster to pick
+// an assignee from.
+export async function getAuthenticatedUserLogin(): Promise<string> {
+  const user = await githubRequest<{ login: string }>("/user");
+  return user.login;
+}
+
+// Plain REST assignees endpoint — fine for a real human login. (Only
+// Copilot's bot login silently no-ops here; see assignCopilotToIssue.)
+export async function assignIssueToUser(
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  login: string
+): Promise<void> {
+  await githubRequest(`/repos/${owner}/${repo}/issues/${issueNumber}/assignees`, {
+    method: "POST",
+    body: JSON.stringify({ assignees: [login] }),
+  });
+}
+
 export async function assignIssueToMilestone(
   owner: string,
   repo: string,

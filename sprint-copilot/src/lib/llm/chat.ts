@@ -21,7 +21,7 @@ function buildSystemPrompt(board: BoardIssue[]): string {
   });
 
   return [
-    "You are Sprint Co-Pilot's backlog assistant.",
+    "You are Compass's backlog assistant.",
     "Answer questions about the team's GitHub issues and kanban board using only the data below.",
     "Be concise. If something isn't in the data, say you don't know rather than guessing.",
     "",

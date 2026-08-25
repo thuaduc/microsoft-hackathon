@@ -1,4 +1,4 @@
-# Sprint Co-Pilot — brief for any Claude session working on this
+# Compass (formerly "Sprint Co-Pilot") — brief for any Claude session working on this
 
 Full detail, module interfaces, dependency graph, and per-track scope: see
 `PLAN.md` in this directory. This file is just the load-bearing constraints —
