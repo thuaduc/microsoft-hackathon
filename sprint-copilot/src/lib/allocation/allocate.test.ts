@@ -28,6 +28,7 @@ function issue(
       type,
       is_epic: isEpic,
       points,
+      duplicate_of: null,
     },
   };
 }

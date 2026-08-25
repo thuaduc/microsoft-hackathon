@@ -9,6 +9,7 @@ import {
 import { createMilestone } from "@/lib/github/milestones";
 import { classifyIssues } from "@/lib/llm/classify";
 import { allocate } from "@/lib/allocation/allocate";
+import { consolidateDuplicates } from "@/lib/allocation/consolidate";
 import type { ClassifiedIssue, SprintRunResult, WriteOutcome } from "@/types";
 
 function message(err: unknown): string {
@@ -48,9 +49,14 @@ export async function POST() {
     classification: classificationByNumber.get(issue.number)!,
   }));
 
+  // Exclude near-duplicate issues before allocation — a consolidated issue
+  // is never scheduled, never written to GitHub, just reported back so
+  // it's visible rather than silently dropped.
+  const { deduped, consolidated } = consolidateDuplicates(classified);
+
   let allocationResult;
   try {
-    allocationResult = allocate(classified, {
+    allocationResult = allocate(deduped, {
       capacityPoints: CAPACITY_POINTS,
       featureRatio: FEATURE_RATIO,
       bugRatio: BUG_RATIO,
@@ -116,6 +122,7 @@ export async function POST() {
     ok: true,
     milestone: { number: milestone.number, html_url: milestone.html_url, title: milestone.title },
     writeOutcomes,
+    consolidated,
     totals: allocationResult.totals,
   };
   return NextResponse.json(result);

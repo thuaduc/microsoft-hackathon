@@ -24,6 +24,13 @@ export function buildClassificationPrompt(issues: GitHubIssue[]): {
     `- points: estimated effort, chosen ONLY from this fixed scale: ${POINT_SCALE.join(", ")}.`,
     "- subticket_suggestions: when is_epic is true, 2-5 short titles for the sub-tickets",
     "  this epic should be split into; an empty array when is_epic is false.",
+    "- duplicate_of: if this issue clearly describes the same underlying problem or",
+    "  request as another issue IN THIS SAME BATCH (not something you recall from",
+    "  elsewhere), set this to that other issue's number. Only flag near-duplicates —",
+    "  same bug, same feature request, substantially overlapping scope — not issues",
+    "  that are merely related or in the same area. Otherwise null. If two issues in",
+    "  the batch duplicate each other, pick either one as the canonical issue and set",
+    "  duplicate_of only on the other.",
     "Classify every issue given — do not skip or invent any.",
   ].join("\n");
 

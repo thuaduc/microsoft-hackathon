@@ -21,6 +21,7 @@ const CLASSIFICATION_SCHEMA = {
           is_epic: { type: "boolean" },
           points: { type: "integer", enum: POINT_SCALE },
           subticket_suggestions: { type: "array", items: { type: "string" } },
+          duplicate_of: { type: ["integer", "null"] },
         },
         required: [
           "issue_number",
@@ -28,6 +29,7 @@ const CLASSIFICATION_SCHEMA = {
           "is_epic",
           "points",
           "subticket_suggestions",
+          "duplicate_of",
         ],
         additionalProperties: false,
       },
@@ -43,6 +45,7 @@ interface RawClassification {
   is_epic: boolean;
   points: number;
   subticket_suggestions: string[];
+  duplicate_of: number | null;
 }
 
 export async function classifyIssues(
@@ -112,11 +115,18 @@ export async function classifyIssues(
       );
     }
 
+    // A self-reference is nonsensical (the model contradicting itself) —
+    // treat it as "not a duplicate" rather than failing the whole request.
+    // Referencing an issue_number outside this batch is handled defensively
+    // by the consolidation step, not here.
+    const duplicateOf = item.duplicate_of === item.issue_number ? null : item.duplicate_of;
+
     const classification: IssueClassification = {
       issue_number: item.issue_number,
       type: item.type as IssueType,
       is_epic: item.is_epic,
       points: item.points,
+      duplicate_of: duplicateOf,
     };
     if (item.is_epic && item.subticket_suggestions.length > 0) {
       classification.subticket_suggestions = item.subticket_suggestions;
