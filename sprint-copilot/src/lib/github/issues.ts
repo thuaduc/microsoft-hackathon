@@ -266,17 +266,29 @@ export async function getAuthenticatedUserLogin(): Promise<string> {
 }
 
 // Plain REST assignees endpoint — fine for a real human login. (Only
-// Copilot's bot login silently no-ops here; see assignCopilotToIssue.)
+// Copilot's bot login silently no-ops here; see assignCopilotToIssue.) That
+// same silent no-op can also happen for a human login that isn't a fully
+// assignable collaborator (e.g. team-inherited access, or a scoped
+// fine-grained PAT) — GitHub returns 201 with the login just missing from
+// the response body's `assignees`, so that body is checked rather than
+// trusting a 2xx status.
 export async function assignIssueToUser(
   owner: string,
   repo: string,
   issueNumber: number,
   login: string
 ): Promise<void> {
-  await githubRequest(`/repos/${owner}/${repo}/issues/${issueNumber}/assignees`, {
-    method: "POST",
-    body: JSON.stringify({ assignees: [login] }),
-  });
+  const updated = await githubRequest<{ assignees: Array<{ login: string }> | null }>(
+    `/repos/${owner}/${repo}/issues/${issueNumber}/assignees`,
+    {
+      method: "POST",
+      body: JSON.stringify({ assignees: [login] }),
+    }
+  );
+  const applied = (updated.assignees ?? []).some((assignee) => assignee.login === login);
+  if (!applied) {
+    throw new Error(`GitHub silently dropped assignee "${login}" — not an assignable collaborator on this repo.`);
+  }
 }
 
 export async function assignIssueToMilestone(

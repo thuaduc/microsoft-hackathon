@@ -44,6 +44,12 @@ const STAGE_LABEL: Record<string, string> = {
   write: "Writing to GitHub",
 };
 
+const STATUS_PILLS: Array<{ key: "milestoneAssigned" | "labelsApplied" | "assigneeApplied"; label: string }> = [
+  { key: "milestoneAssigned", label: "Milestone" },
+  { key: "labelsApplied", label: "Labels" },
+  { key: "assigneeApplied", label: "Assignee" },
+];
+
 export default function ResultView({ result }: { result: SprintRunResult }) {
   if (!result.ok) {
     const stage = result.error?.stage;
@@ -119,24 +125,15 @@ export default function ResultView({ result }: { result: SprintRunResult }) {
                 >
                   {o.bucket}
                 </span>
-                <span
-                  className={`${styles.status} ${o.milestoneAssigned ? styles.statusDone : ""}`}
-                  title="Milestone assigned"
-                >
-                  {o.milestoneAssigned ? <CheckIcon /> : <DashIcon />} Milestone
-                </span>
-                <span
-                  className={`${styles.status} ${o.labelsApplied ? styles.statusDone : ""}`}
-                  title="Labels applied"
-                >
-                  {o.labelsApplied ? <CheckIcon /> : <DashIcon />} Labels
-                </span>
-                <span
-                  className={`${styles.status} ${o.assigneeApplied ? styles.statusDone : ""}`}
-                  title="Assignee applied"
-                >
-                  {o.assigneeApplied ? <CheckIcon /> : <DashIcon />} Assignee
-                </span>
+                {STATUS_PILLS.map(({ key, label }) => (
+                  <span
+                    key={key}
+                    className={`${styles.status} ${o[key] ? styles.statusDone : ""}`}
+                    title={`${label} ${o[key] ? "applied" : "not applied"}`}
+                  >
+                    {o[key] ? <CheckIcon /> : <DashIcon />} {label}
+                  </span>
+                ))}
               </div>
               {o.errors.length > 0 && (
                 <p className={styles.itemError}>{o.errors.join(" · ")}</p>
