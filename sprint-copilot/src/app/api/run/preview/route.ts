@@ -21,16 +21,17 @@ function message(err: unknown): string {
 // is a PreviewResult the user can review and adapt before confirming
 // (see /api/run/confirm for the write phase).
 export async function POST(request: NextRequest) {
-  // Optional body — the settings page's free-text team preferences, passed
-  // through to classification. Malformed/empty body just means none set.
-  const body = await request.json().catch(() => ({}) as { teamPreferences?: string });
-  const teamPreferences = typeof body.teamPreferences === "string" ? body.teamPreferences.trim() : "";
+  // Optional body — the sprint-planning page's free-text "this sprint's
+  // focus" field, passed through to classification. Malformed/empty body
+  // just means none set.
+  const body = await request.json().catch(() => ({}) as { sprintFocus?: string });
+  const sprintFocus = typeof body.sprintFocus === "string" ? body.sprintFocus.trim() : "";
 
   return ndjsonStream(async (emit: (event: PipelineEvent) => void) => {
     const { owner, repo } = getTargetRepo();
 
-    if (teamPreferences) {
-      emit({ type: "log", message: `Applying team preferences: "${teamPreferences}"` });
+    if (sprintFocus) {
+      emit({ type: "log", message: `Applying custom instructions:\n${sprintFocus}` });
     }
 
     emit({ type: "log", message: "Fetching open issues…" });
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     emit({ type: "log", message: `Classifying ${issues.length} issues with OpenAI…` });
     let classifications;
     try {
-      classifications = await classifyIssues(issues, teamPreferences);
+      classifications = await classifyIssues(issues, sprintFocus);
     } catch (err) {
       emit({ type: "error", stage: "classify", message: message(err) });
       return;

@@ -8,7 +8,6 @@ const LINKS = [
   { href: "/", label: "Kanban" },
   { href: "/sprint-planning", label: "Sprint Planning" },
   { href: "/chat", label: "Chat" },
-  { href: "/settings", label: "Settings" },
 ];
 
 export default function Nav() {

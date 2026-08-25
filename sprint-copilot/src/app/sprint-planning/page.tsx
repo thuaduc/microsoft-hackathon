@@ -7,7 +7,6 @@ import ResultView from "@/components/ResultView";
 import ActivityLog from "@/components/ActivityLog";
 import ReviewPanel from "@/components/ReviewPanel";
 import { readNdjsonStream } from "@/lib/pipeline/stream";
-import { getTeamPreferences } from "@/lib/settings/preferences";
 import type { ConfirmSelection, PreviewResult, SprintRunResult } from "@/types";
 
 type Status = "idle" | "previewing" | "reviewing" | "writing" | "done" | "error";
@@ -22,6 +21,7 @@ export default function SprintPlanning() {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [result, setResult] = useState<SprintRunResult | null>(null);
   const [nextSprintTitle, setNextSprintTitle] = useState<string | null>(null);
+  const [sprintFocus, setSprintFocus] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -43,10 +43,12 @@ export default function SprintPlanning() {
     setPreview(null);
     setResult(null);
     try {
+      const focusMessage = sprintFocus.trim() ? `This sprint's focus: ${sprintFocus.trim()}` : "";
+
       const res = await fetch("/api/run/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamPreferences: getTeamPreferences() }),
+        body: JSON.stringify({ sprintFocus: focusMessage }),
       });
       await readNdjsonStream(res, (event) => {
         if (event.type === "log") {
@@ -112,6 +114,22 @@ export default function SprintPlanning() {
       </header>
 
       <div className={styles.panel}>
+        {showRunButton && (
+          <div className={styles.focusRow}>
+            <label className={styles.focusLabel} htmlFor="sprint-focus">
+              This sprint&rsquo;s focus <span className={styles.optional}>(optional)</span>
+            </label>
+            <textarea
+              id="sprint-focus"
+              className={styles.focusInput}
+              value={sprintFocus}
+              onChange={(e) => setSprintFocus(e.target.value)}
+              placeholder="e.g. This sprint I want to focus on fixing bugs and add an AI feature."
+              rows={2}
+              disabled={status === "previewing"}
+            />
+          </div>
+        )}
         {showRunButton && (
           <RunButton
             status={status === "previewing" ? "previewing" : status === "error" ? "error" : "idle"}

@@ -55,11 +55,11 @@ read it before touching any track.
 
 5. **No database, no auth flow.** State lives only in the request/response
    cycle and React state. Auth is a single GitHub PAT in a server-side env var.
-   Exception: the settings page's free-text team preferences persist in
-   `localStorage` (`src/lib/settings/preferences.ts`) — a client-side
-   per-browser cache, not a server-side database, so it doesn't violate this.
-   It's sent as part of the `/api/run/preview` request body and forwarded
-   into the classification prompt; nothing about it is stored server-side.
+   (There was briefly a settings page persisting preferences to
+   `localStorage` — removed as redundant once the sprint-planning page grew
+   its own per-run "this sprint's focus" field, which is plain React state,
+   sent as part of the `/api/run/preview` request body and forwarded into
+   the classification prompt. Nothing here is stored anywhere.)
 
 6. **CORS is a non-issue by design.** The browser only talks to the
    same-origin `/api/run` route; GitHub and OpenAI are called server-side from

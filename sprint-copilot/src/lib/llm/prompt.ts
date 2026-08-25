@@ -12,7 +12,7 @@ function truncateBody(body: string | null): string {
 
 export function buildClassificationPrompt(
   issues: GitHubIssue[],
-  teamPreferences?: string
+  sprintFocus?: string
 ): {
   system: string;
   user: string;
@@ -30,13 +30,13 @@ export function buildClassificationPrompt(
     "  the batch duplicate each other, pick either one as the canonical issue and set",
     "  duplicate_of only on the other.",
     "Classify every issue given — do not skip or invent any.",
-    ...(teamPreferences?.trim()
+    ...(sprintFocus?.trim()
       ? [
           "",
-          "The team has also given these preferences to weigh when classifying",
-          "(e.g. they can shift how you judge effort or urgency, but never override",
-          "the type/points/duplicate_of rules above):",
-          teamPreferences.trim(),
+          "The user has also given this sprint's focus, to weigh when classifying",
+          "(it can shift how you judge effort or urgency, but never override the",
+          "type/points/duplicate_of rules above):",
+          sprintFocus.trim(),
         ]
       : []),
   ].join("\n");

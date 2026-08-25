@@ -40,6 +40,50 @@
   box-shadow: 0 1px 2px rgba(15, 17, 21, 0.04), 0 16px 40px rgba(15, 17, 21, 0.08);
 }
 
+.focusRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.focusLabel {
+  font-family: var(--font-data);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.optional {
+  text-transform: none;
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--text-tertiary);
+}
+
+.focusInput {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: 13.5px;
+  line-height: 1.5;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.focusInput:focus-visible {
+  border-color: var(--accent-border);
+}
+
+.focusInput:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 @media (max-width: 600px) {
   .page {
     padding: 24px 20px 32px;

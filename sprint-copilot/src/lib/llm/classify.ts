@@ -39,9 +39,9 @@ interface RawClassification {
 
 export async function classifyIssues(
   issues: GitHubIssue[],
-  teamPreferences?: string
+  sprintFocus?: string
 ): Promise<IssueClassification[]> {
-  const { system, user } = buildClassificationPrompt(issues, teamPreferences);
+  const { system, user } = buildClassificationPrompt(issues, sprintFocus);
   const client = new OpenAI({ apiKey: getOpenAIKey() });
 
   let response;
