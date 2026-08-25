@@ -315,6 +315,23 @@ export async function assignIssueToMilestone(
   });
 }
 
+// Same endpoint as assignIssueToMilestone, milestone: null instead of a
+// number — GitHub's way of clearing an issue's milestone. Called when a
+// card is dragged back to Backlog: without this, the issue keeps its old
+// milestone forever (status labels get cleared, but nothing else touches
+// milestone), so it silently stays a carry-over candidate for that sprint
+// even though it visually reads as "back in backlog" on the board.
+export async function unassignIssueFromMilestone(
+  owner: string,
+  repo: string,
+  issueNumber: number
+): Promise<void> {
+  await githubRequest(`/repos/${owner}/${repo}/issues/${issueNumber}`, {
+    method: "PATCH",
+    body: JSON.stringify({ milestone: null }),
+  });
+}
+
 // Creates a new issue, then links it as a sub-issue of parentIssueNumber.
 // The sub_issues endpoint takes the child's numeric database `id`, NOT its
 // `number` — that's what gets captured from the create call below.

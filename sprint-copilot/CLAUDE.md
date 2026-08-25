@@ -70,6 +70,24 @@ read it before touching any track.
     at all, so unfinished work could silently miss its old sprint's view or
     get re-milestoned with a stale `status:in-progress` label still on it
     (see the labels gotcha below for that half of the fix).
+    **Dragging a card back to Backlog must clear its milestone, or this
+    silently over-triggers.** Found live: a card moved to Backlog only had
+    its `status:*` label stripped (via `setIssueBoardStatus`) — its
+    milestone assignment was untouched, so it kept counting as a carry-over
+    candidate for that sprint forever, even though the board visually
+    showed it back in Backlog (Backlog always renders regardless of
+    milestone, so nothing looked wrong). `PATCH /api/board/{number}`
+    (`board/[number]/route.ts`) now calls the new
+    `unassignIssueFromMilestone()` (`{"milestone": null}`, `issues.ts`)
+    whenever `status === "backlog"` and no explicit `milestoneNumber` was
+    given; `KanbanBoard.tsx`'s optimistic update clears `milestone` locally
+    the same way. Confirmed live: 8 issues had accumulated this
+    stuck-on-Sprint-2 state before the fix; cleaning them up (re-PATCHing
+    each to `status: "backlog"`) dropped a preview's carry-over count from
+    8 to the 1 that was actually still open. If carry-over counts look too
+    high again, check for issues with `status: "backlog"` on the board that
+    still have a non-null `milestone` — that combination should be
+    impossible going forward.
 
 2e. **Classification also flags possibly-stale issues, using real repo
     content — not just a review of other issues.** Before classifying,

@@ -746,6 +746,42 @@ showed `#28`'s real state (`in_progress`, `milestone: null`) before the
 fix, and the rendered board showed it appear in the In Progress column
 after.
 
+### Addendum — Backlog moves must clear milestone, or carry-over over-triggers
+
+User report: "still see a lot of carry overs even though I moved most of
+them" — a real data bug, not a misunderstanding.
+
+**Root cause**: `setIssueBoardStatus()` (called on every drag-and-drop
+move) only ever touches the `status:*` label and open/closed state — it
+never touches `milestone`. So dragging a card from a sprint-scoped column
+back to Backlog stripped its status label (making it render correctly in
+Backlog, since Backlog shows regardless of milestone — nothing *looked*
+wrong) but left the old milestone assignment in place underneath. Carry-
+over logic (2d above) only checks "still open AND on the previous
+milestone" — it has no idea the board is showing the issue as backlog now.
+Result: every issue ever dragged back to Backlog stayed a carry-over
+candidate for its old sprint forever, accumulating silently.
+
+**Fix**: new `unassignIssueFromMilestone()` in `issues.ts` (`PATCH
+.../issues/{n}` body `{"milestone": null}`), called from `PATCH
+/api/board/{number}` whenever the target status is `"backlog"` and no
+explicit `milestoneNumber` was passed (i.e., not the "assign into the
+currently-viewed sprint" case handled elsewhere in that same route).
+`KanbanBoard.tsx`'s optimistic local update mirrors this — `milestone` is
+set to `null` locally for a backlog move, not left untouched.
+
+**Cleanup of already-affected data**: found 8 real issues in the target
+repo stuck in this state (`status: "backlog"` on the board, but still
+milestoned to "Sprint 2" underneath) — re-PATCHed each one (`{"status":
+"backlog"}`, no `milestoneNumber`) through the now-fixed route to clear
+them. Verified before/after with a live preview: carry-over count dropped
+from 8 to 1 (the one issue that was genuinely still open and `todo`).
+
+**If this regresses**: any issue with board `status: "backlog"` that still
+has a non-null `milestone` indicates the bug is back — that combination
+should be structurally impossible after this fix. Don't reintroduce a
+"backlog move only touches labels" shortcut.
+
 ## Secrets & human verification (do these manually before/alongside Track A and B)
 
 - **GitHub PAT**: create a fine-grained PAT scoped to the target repo with Issues
@@ -848,6 +884,11 @@ after.
     (todo/in_progress/done/cancelled) and **no milestone assigned** appears
     in its status column regardless of which sprint is selected in the nav
     — it should never be invisible.
+21. Drag a card that's assigned to the currently-viewed sprint back to
+    Backlog, then check it on GitHub: its milestone should be cleared
+    (`null`), not just its `status:*` label removed. Preview a new sprint
+    afterward and confirm that issue is **not** listed as a carry-over —
+    only issues still genuinely open under the previous sprint should be.
 
 ## Critical files
 

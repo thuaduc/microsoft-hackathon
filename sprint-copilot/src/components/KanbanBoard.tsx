@@ -101,7 +101,11 @@ export default function KanbanBoard() {
   async function handleStatusChange(issueNumber: number, status: BoardStatus) {
     const previous = issues;
     const milestoneNumber = status !== "backlog" && selectedMilestone !== null ? selectedMilestone : undefined;
-    const milestone = milestoneNumber !== undefined ? (selectedSprint ?? null) : undefined;
+    // Backlog means "out of any sprint" — clear the local milestone too, or
+    // the card would keep showing under its old sprint (and count as a
+    // carry-over candidate there) until the next full refetch. Any other
+    // status change leaves the existing milestone alone.
+    const milestone = status === "backlog" ? null : milestoneNumber !== undefined ? (selectedSprint ?? null) : undefined;
     setMoveError(null);
     setIssues((current) =>
       current.map((issue) =>

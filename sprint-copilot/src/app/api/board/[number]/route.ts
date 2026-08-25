@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getTargetRepo } from "@/config";
-import { assignIssueToMilestone, setIssueBoardStatus } from "@/lib/github/issues";
+import { assignIssueToMilestone, setIssueBoardStatus, unassignIssueFromMilestone } from "@/lib/github/issues";
 import type { BoardStatus } from "@/types";
 
 const VALID_STATUSES: BoardStatus[] = ["backlog", "todo", "in_progress", "done", "cancelled"];
@@ -33,6 +33,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ nu
     await setIssueBoardStatus(owner, repo, issueNumber, status);
     if (milestoneNumber !== undefined) {
       await assignIssueToMilestone(owner, repo, issueNumber, milestoneNumber);
+    } else if (status === "backlog") {
+      // Moving back to Backlog means "out of any sprint" — clear the
+      // milestone too, or the issue silently keeps its old one forever
+      // (only the status:* label gets touched otherwise) and keeps
+      // showing up as a carry-over candidate for a sprint it visually
+      // looks like it left.
+      await unassignIssueFromMilestone(owner, repo, issueNumber);
     }
     return NextResponse.json({ ok: true });
   } catch (err) {
