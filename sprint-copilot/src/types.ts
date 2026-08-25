@@ -22,6 +22,16 @@ export interface BoardIssue extends GitHubIssue {
   status: BoardStatus;
 }
 
+// A pull request cross-referenced against an issue — surfaced on Todo/In
+// Progress cards as a small badge so a Copilot-opened PR shows up without
+// any new sync mechanism, just whatever GitHub's timeline reports right now.
+export interface LinkedPullRequest {
+  number: number;
+  html_url: string;
+  state: "open" | "closed";
+  merged: boolean;
+}
+
 export type IssueType = "feature" | "bug";
 
 export interface IssueClassification {

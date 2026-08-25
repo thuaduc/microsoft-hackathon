@@ -73,3 +73,49 @@
   font-size: 10.5px;
   color: var(--text-tertiary);
 }
+
+.copilotRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.copilotButton {
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+.copilotButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .copilotButton:not(:disabled):hover {
+    background: var(--accent-border);
+  }
+}
+
+.prBadge {
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.prBadgeMerged {
+  background: var(--success-soft);
+  border-color: var(--success);
+  color: var(--success);
+}

@@ -1,21 +1,29 @@
 "use client";
 
-import type { DragEvent } from "react";
+import { useEffect, useState, type DragEvent, type MouseEvent } from "react";
 import styles from "./TicketCard.module.css";
+import TicketDetailModal from "./TicketDetailModal";
 import { STATUS_IN_PROGRESS_LABEL, STATUS_TODO_LABEL } from "@/config";
 import { contrastTextColor, pickTypeLabel } from "@/lib/labels";
-import type { BoardIssue } from "@/types";
+import type { BoardIssue, LinkedPullRequest } from "@/types";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function prBadgeLabel(pr: LinkedPullRequest): string {
+  if (pr.merged) return "PR merged";
+  return pr.state === "open" ? "PR open" : "PR closed";
+}
+
 export default function TicketCard({
   issue,
   onDragEnd,
+  onAssignCopilot,
 }: {
   issue: BoardIssue;
   onDragEnd: () => void;
+  onAssignCopilot: (issueNumber: number) => Promise<void>;
 }) {
   const visibleLabels = issue.labels.filter(
     (label) => label !== STATUS_TODO_LABEL && label !== STATUS_IN_PROGRESS_LABEL
@@ -24,22 +32,58 @@ export default function TicketCard({
   const otherLabels = visibleLabels.filter((label) => label !== typeLabel);
   const typeColor = typeLabel ? issue.labelColors?.[typeLabel] : undefined;
 
+  const showCopilotAction = issue.status === "todo" || issue.status === "in_progress";
+  const [assigning, setAssigning] = useState(false);
+  const [linkedPullRequest, setLinkedPullRequest] = useState<LinkedPullRequest | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
+
+  useEffect(() => {
+    if (!showCopilotAction) return;
+    let cancelled = false;
+    fetch(`/api/board/${issue.number}/pull-request`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.pullRequest) setLinkedPullRequest(data.pullRequest);
+      })
+      .catch(() => {
+        // Best-effort badge — a failed lookup just means no badge shows.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [issue.number, showCopilotAction]);
+
+  async function handleAssignCopilot() {
+    setAssigning(true);
+    try {
+      await onAssignCopilot(issue.number);
+    } finally {
+      setAssigning(false);
+    }
+  }
+
   function handleDragStart(event: DragEvent<HTMLLIElement>) {
     event.dataTransfer.setData("text/plain", String(issue.number));
     event.dataTransfer.effectAllowed = "move";
   }
 
+  function stopPropagation(event: MouseEvent) {
+    event.stopPropagation();
+  }
+
   return (
-    <li
-      className={styles.card}
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={onDragEnd}
-    >
-      <a className={styles.title} href={issue.html_url} target="_blank" rel="noopener noreferrer">
-        <span className={styles.number}>#{issue.number}</span>
-        {issue.title}
-      </a>
+    <>
+      <li
+        className={styles.card}
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={onDragEnd}
+        onClick={() => setShowDetail(true)}
+      >
+        <div className={styles.title}>
+          <span className={styles.number}>#{issue.number}</span>
+          {issue.title}
+        </div>
       {(typeLabel || otherLabels.length > 0) && (
         <div className={styles.labels}>
           {typeLabel && (
@@ -69,6 +113,38 @@ export default function TicketCard({
         <span>Created {formatDate(issue.created_at)}</span>
         {issue.closed_at && <span>Closed {formatDate(issue.closed_at)}</span>}
       </div>
-    </li>
+      {showCopilotAction && (
+        <div className={styles.copilotRow}>
+          <button
+            type="button"
+            className={styles.copilotButton}
+            onClick={(event) => {
+              stopPropagation(event);
+              handleAssignCopilot();
+            }}
+            disabled={assigning}
+          >
+            {assigning ? "Assigning…" : "Do with Copilot"}
+          </button>
+          {linkedPullRequest && (
+            <a
+              className={
+                linkedPullRequest.merged
+                  ? `${styles.prBadge} ${styles.prBadgeMerged}`
+                  : styles.prBadge
+              }
+              href={linkedPullRequest.html_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={stopPropagation}
+            >
+              {prBadgeLabel(linkedPullRequest)}
+            </a>
+          )}
+        </div>
+      )}
+      </li>
+      {showDetail && <TicketDetailModal issue={issue} onClose={() => setShowDetail(false)} />}
+    </>
   );
 }

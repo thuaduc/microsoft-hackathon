@@ -11,11 +11,12 @@ export async function createMilestone(
   owner: string,
   repo: string,
   title: string,
-  description?: string
+  description?: string,
+  dueOn?: string
 ): Promise<GitHubMilestone> {
   return githubRequest<GitHubMilestone>(`/repos/${owner}/${repo}/milestones`, {
     method: "POST",
-    body: JSON.stringify({ title, description }),
+    body: JSON.stringify({ title, description, due_on: dueOn }),
   });
 }
 

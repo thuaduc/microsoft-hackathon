@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { STATUS_TODO_LABEL, getTargetRepo } from "@/config";
+import { BUCKET_LABEL, STATUS_TODO_LABEL, getTargetRepo } from "@/config";
 import { applyLabels, assignIssueToMilestone } from "@/lib/github/issues";
 import { createMilestone } from "@/lib/github/milestones";
 import { ndjsonStream } from "@/lib/stream/ndjson";
@@ -10,6 +10,8 @@ import type {
   SprintRunResult,
   WriteOutcome,
 } from "@/types";
+
+const SPRINT_LENGTH_DAYS = 14;
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -41,7 +43,8 @@ export async function POST(request: NextRequest) {
     emit({ type: "log", message: `Creating milestone "${body.milestoneTitle}"…` });
     let milestone;
     try {
-      milestone = await createMilestone(owner, repo, body.milestoneTitle);
+      const dueOn = new Date(Date.now() + SPRINT_LENGTH_DAYS * 24 * 60 * 60 * 1000).toISOString();
+      milestone = await createMilestone(owner, repo, body.milestoneTitle, undefined, dueOn);
     } catch (err) {
       emit({ type: "error", stage: "write", message: message(err) });
       return;
@@ -70,7 +73,7 @@ export async function POST(request: NextRequest) {
       try {
         await applyLabels(owner, repo, issue.issueNumber, [
           "agent-drafted",
-          `type: ${issue.bucket}`,
+          BUCKET_LABEL[issue.bucket],
           STATUS_TODO_LABEL,
         ]);
         outcome.labelsApplied = true;

@@ -1,5 +1,5 @@
-import { STATUS_IN_PROGRESS_LABEL, STATUS_TODO_LABEL } from "@/config";
-import type { BoardStatus, GitHubIssue } from "@/types";
+import { COPILOT_ASSIGNEE_LOGIN, STATUS_IN_PROGRESS_LABEL, STATUS_TODO_LABEL } from "@/config";
+import type { BoardStatus, GitHubIssue, LinkedPullRequest } from "@/types";
 import { GitHubApiError, githubFetch, githubRequest, parseNextLink } from "./client";
 
 interface RawIssue {
@@ -152,6 +152,60 @@ export async function setIssueBoardStatus(
       }),
     });
   }
+}
+
+// Hands the issue to GitHub's Copilot coding agent — additive, like
+// applyLabels, so any existing human assignees are left in place. GitHub
+// opens the PR on its own from here; see getLinkedPullRequest for how that
+// PR later shows back up on the card.
+export async function assignCopilotToIssue(
+  owner: string,
+  repo: string,
+  issueNumber: number
+): Promise<void> {
+  await githubRequest(`/repos/${owner}/${repo}/issues/${issueNumber}/assignees`, {
+    method: "POST",
+    body: JSON.stringify({ assignees: [COPILOT_ASSIGNEE_LOGIN] }),
+  });
+}
+
+interface RawTimelineEvent {
+  event: string;
+  source?: {
+    type: string;
+    issue?: {
+      number: number;
+      html_url: string;
+      state: "open" | "closed";
+      pull_request?: { merged_at: string | null };
+    };
+  };
+}
+
+// Finds the most recent PR cross-referenced against this issue (e.g. one
+// Copilot opened) via the issue's timeline — no separate PR-tracking state,
+// just whatever GitHub currently reports. Returns null if none.
+export async function getLinkedPullRequest(
+  owner: string,
+  repo: string,
+  issueNumber: number
+): Promise<LinkedPullRequest | null> {
+  const events = await githubRequest<RawTimelineEvent[]>(
+    `/repos/${owner}/${repo}/issues/${issueNumber}/timeline?per_page=100`
+  );
+
+  let latest: LinkedPullRequest | null = null;
+  for (const event of events) {
+    const pr = event.source?.issue?.pull_request;
+    if (event.event !== "cross-referenced" || !event.source?.issue || !pr) continue;
+    latest = {
+      number: event.source.issue.number,
+      html_url: event.source.issue.html_url,
+      state: event.source.issue.state,
+      merged: pr.merged_at != null,
+    };
+  }
+  return latest;
 }
 
 export async function assignIssueToMilestone(

@@ -1,6 +1,9 @@
 // Shared label-rendering helpers for TicketCard and BacklogList.
 
-const TYPE_LABEL_PATTERN = /^(feature|bug)$/i;
+// Matches the app's canonical type labels — consolidated onto GitHub's own
+// bug/enhancement rather than a separate "type: *" scheme (see BUCKET_LABEL
+// in config.ts).
+const TYPE_LABEL_PATTERN = /^(bug|enhancement)$/i;
 
 // Pulls the label that represents this issue's type (matching the app's own
 // IssueType vocabulary) out of a label list, if present.

@@ -118,6 +118,30 @@ export default function KanbanBoard() {
     }
   }
 
+  // Assigns Copilot server-side, then reflects the resulting In Progress
+  // move locally — same error-surfacing pattern as handleStatusChange, no
+  // optimistic move here since assigning Copilot is the thing that must
+  // actually succeed first.
+  async function handleAssignCopilot(issueNumber: number) {
+    setMoveError(null);
+    try {
+      const res = await fetch(`/api/board/${issueNumber}/copilot`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "Request failed.");
+      }
+      setIssues((current) =>
+        current.map((issue) =>
+          issue.number === issueNumber ? { ...issue, status: "in_progress" } : issue
+        )
+      );
+    } catch (err) {
+      setMoveError(
+        `Couldn't assign Copilot to #${issueNumber} — ${err instanceof Error ? err.message : "request failed."}`
+      );
+    }
+  }
+
   function handleDragOver(column: BoardStatus, event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
@@ -196,6 +220,7 @@ export default function KanbanBoard() {
                     key={issue.number}
                     issue={issue}
                     onDragEnd={() => setDragOverColumn(null)}
+                    onAssignCopilot={handleAssignCopilot}
                   />
                 ))}
                 {columnIssues.length === 0 && <li className={styles.empty}>No issues</li>}
